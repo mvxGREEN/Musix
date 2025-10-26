@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "green.mobileapps.bopmusicplayer"
+    namespace = "green.mobileapps.offlinemusicplayer"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "green.mobileapps.bopmusicplayer"
+        applicationId = "green.mobileapps.offlinemusicplayer"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

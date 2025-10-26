@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F0F4F8"
+    android:background="@color/naturalLight"
     tools:context=".MainActivity">
 
     <!-- Header Toolbar -->
@@ -12,12 +12,12 @@
         android:id="@+id/toolbar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="@color/primary"
+        android:background="@color/colorPrimary"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:title="3MP Music Player"
-        app:titleTextColor="@android:color/white"
+        app:titleTextColor="@color/naturalLight"
         android:elevation="4dp"/>
 
     <!-- RecyclerView for the list of songs -->

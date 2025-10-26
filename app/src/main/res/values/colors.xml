@@ -5,6 +5,15 @@
     <color name="colorAccent">@color/mvxPink</color>
 
     <color name="greenGma">#1F6427</color>
+
+    <color name="twistedBlue">#00b1ff</color>
+    <color name="twistedLight">#ddf2ff</color>
+    <color name="twistedDark">#637899</color>
+
+    <color name="naturalPrimaryAlt">#779a75</color>
+    <color name="naturalLight">#f3fcf2</color>
+    <color name="naturalLightAlt">#fffbce</color>
+
     <color name="mvxPink">#FF9999</color>
     <color name="mvxPinkShadowLight">#D3FFADAD</color>
 

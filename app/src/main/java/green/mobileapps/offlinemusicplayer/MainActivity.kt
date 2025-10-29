@@ -3,6 +3,8 @@ package green.mobileapps.offlinemusicplayer
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,13 +27,76 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-// 1. Data Model for an Audio File
+// Helper extension function to safely get a string from a cursor
+private fun Cursor.getNullableString(columnName: String): String? {
+    val index = getColumnIndex(columnName)
+    return if (index != -1 && !isNull(index)) getString(index) else null
+}
+
+// Helper extension function to safely get a long from a cursor
+private fun Cursor.getNullableLong(columnName: String): Long? {
+    val index = getColumnIndex(columnName)
+    return if (index != -1 && !isNull(index)) getLong(index) else null
+}
+
+// Helper extension function to safely get an int from a cursor
+private fun Cursor.getNullableInt(columnName: String): Int? {
+    val index = getColumnIndex(columnName)
+    return if (index != -1 && !isNull(index)) getInt(index) else null
+}
+
+// Helper extension function to safely get a boolean from a cursor (converts 0/1 to Boolean)
+private fun Cursor.getNullableBoolean(columnName: String): Boolean? {
+    val index = getColumnIndex(columnName)
+    return if (index != -1 && !isNull(index)) getInt(index) == 1 else null
+}
+
+
+// 1. Data Model for an Audio File (Expanded with all requested fields)
 data class AudioFile(
+    // Core fields
     val id: Long,
     val uri: Uri,
     val title: String,
     val artist: String,
-    val duration: Long
+    val duration: Long,
+    val albumArt: ByteArray?,
+
+    // Media Store Metadata
+    val album: String?,
+    val albumArtist: String?,
+    val author: String?,
+    val composer: String?,
+    val track: Int?,
+    val year: Int?,
+    val genre: String?,
+
+    // File Metadata
+    val size: Long?,
+    val dateAdded: Long?,
+    val dateModified: Long?,
+
+    // Playback Metadata
+    val bookmark: Long?,
+    val sampleRate: Int?,
+    val bitrate: Int?,
+    val bitsPerSample: Int?,
+
+    // Classification Flags (Boolean)
+    val isAudiobook: Boolean,
+    val isMusic: Boolean,
+    val isPodcast: Boolean,
+    val isRecording: Boolean,
+    val isAlarm: Boolean,
+    val isNotification: Boolean,
+    val isRingtone: Boolean,
+
+    // Status Flags (Boolean)
+    val isDownload: Boolean,
+    val isDrm: Boolean,
+    val isFavorite: Boolean,
+    val isPending: Boolean,
+    val isTrashed: Boolean
 )
 
 // 2. RecyclerView Adapter to display the list of files
@@ -42,15 +107,37 @@ class MusicAdapter(private val context: Context, private var musicList: List<Aud
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(file: AudioFile) {
-            binding.textTitle.text = file.title
-            binding.textArtist.text = file.artist
+            // show text info
+            val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
+            binding.textTitle.text = "$trackPrefix${file.title}"
+
+
+            val albumInfo = if (file.album != null) " • ${file.album}" else ""
+            binding.textArtist.text = "${file.artist}$albumInfo"
+
+            // show image
+            binding.iconMusic.setImageResource(R.drawable.music_note_24px)
+            binding.iconMusic.setColorFilter(
+                ContextCompat.getColor(context, com.google.android.material.R.color.design_default_color_primary)
+            )
+
+            /* Logic to display album art or fallback icon
+            if (file.albumArt != null) {
+                val bitmap = BitmapFactory.decodeByteArray(file.albumArt, 0, file.albumArt.size)
+                binding.iconMusic.setImageBitmap(bitmap)
+                binding.iconMusic.clearColorFilter()
+            } else {
+                binding.iconMusic.setImageResource(R.drawable.music_note_24px)
+                binding.iconMusic.setColorFilter(
+                    ContextCompat.getColor(context, com.google.android.material.R.color.design_default_color_primary)
+                )
+            }
+            */
 
             // Example click listener (where playback logic would go)
             binding.root.setOnClickListener {
                 // In a real app, you would start a service or play the music here.
-                // For simplicity, we just log a message.
-                // Replace with actual player implementation (e.g., MediaPlayer or ExoPlayer)
-                println("Playing: ${file.title}")
+                println("Playing: ${file.title} | Album: ${file.album} | Size: ${file.size} bytes")
             }
         }
     }
@@ -99,10 +186,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // Permission granted, start scanning
             scanForAudioFiles()
         } else {
-            // Permission denied, show a message
             showStatus("Permission denied. Cannot scan local storage.")
         }
     }
@@ -113,8 +198,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         setContentView(binding.root)
 
         setupRecyclerView()
-
-        // Check and request permission on app open
         checkPermissions()
     }
 
@@ -125,10 +208,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
     private fun checkPermissions() {
         if (ContextCompat.checkSelfPermission(this, mediaPermission) == PackageManager.PERMISSION_GRANTED) {
-            // Permission is already granted
             scanForAudioFiles()
         } else {
-            // Permission is not granted, request it
             requestPermissionLauncher.launch(mediaPermission)
         }
     }
@@ -155,16 +236,42 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         val contentResolver = applicationContext.contentResolver
         val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 
-        // Define which columns we want to retrieve
+        // Define ALL columns we want to retrieve
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.MIME_TYPE
+
+            // Requested Fields:
+            MediaStore.Audio.Media.BOOKMARK,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.SAMPLERATE,
+            MediaStore.Audio.Media.BITRATE,
+            MediaStore.Audio.Media.BITS_PER_SAMPLE,
+            MediaStore.Audio.Media.IS_AUDIOBOOK,
+            MediaStore.Audio.Media.IS_MUSIC,
+            MediaStore.Audio.Media.IS_PODCAST,
+            MediaStore.Audio.Media.IS_RECORDING,
+            MediaStore.Audio.Media.IS_ALARM,
+            MediaStore.Audio.Media.IS_NOTIFICATION,
+            MediaStore.Audio.Media.IS_RINGTONE,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ARTIST,
+            MediaStore.Audio.Media.AUTHOR,
+            MediaStore.Audio.Media.COMPOSER,
+            MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.YEAR,
+            MediaStore.Audio.Media.GENRE,
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.IS_DOWNLOAD,
+            MediaStore.Audio.Media.IS_DRM,
+            MediaStore.Audio.Media.IS_FAVORITE,
+            MediaStore.Audio.Media.IS_PENDING,
+            MediaStore.Audio.Media.IS_TRASHED
         )
 
-        // Filter for music files (optional, MediaStore.Audio.Media usually does this)
         val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
 
         contentResolver.query(
@@ -174,26 +281,78 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             null,
             null
         )?.use { cursor ->
-            // Cache column indices
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
 
             while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val title = cursor.getString(titleColumn) ?: "Unknown Title"
-                val artist = cursor.getString(artistColumn) ?: "Unknown Artist"
-                val duration = cursor.getLong(durationColumn)
+                // --- Core Fields ---
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
+                val title = cursor.getNullableString(MediaStore.Audio.Media.TITLE) ?: "Unknown Title"
+                val artist = cursor.getNullableString(MediaStore.Audio.Media.ARTIST) ?: "Unknown Artist"
+                val duration = cursor.getNullableLong(MediaStore.Audio.Media.DURATION) ?: 0L
 
                 val contentUri: Uri = Uri.withAppendedPath(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                     id.toString()
                 )
 
-                // Add only files with a reasonable duration (e.g., over 30 seconds) to filter out system sounds
+                // --- MediaMetadataRetriever for Album Art ---
+                val retriever = MediaMetadataRetriever()
+                var albumArtBytes: ByteArray? = null
+                try {
+                    retriever.setDataSource(applicationContext, contentUri)
+                    albumArtBytes = retriever.embeddedPicture
+                } catch (e: Exception) {
+                    println("Error retrieving metadata for file ID $id: ${e.message}")
+                } finally {
+                    retriever.release()
+                }
+
+                // --- Extended Metadata Extraction using safe helpers ---
+                val album = cursor.getNullableString(MediaStore.Audio.Media.ALBUM)
+                val albumArtist = cursor.getNullableString(MediaStore.Audio.Media.ALBUM_ARTIST)
+                val author = cursor.getNullableString(MediaStore.Audio.Media.AUTHOR)
+                val composer = cursor.getNullableString(MediaStore.Audio.Media.COMPOSER)
+                val track = cursor.getNullableInt(MediaStore.Audio.Media.TRACK)
+                val year = cursor.getNullableInt(MediaStore.Audio.Media.YEAR)
+                val genre = cursor.getNullableString(MediaStore.Audio.Media.GENRE)
+
+                val size = cursor.getNullableLong(MediaStore.Audio.Media.SIZE)
+                val dateAdded = cursor.getNullableLong(MediaStore.Audio.Media.DATE_ADDED)
+                val dateModified = cursor.getNullableLong(MediaStore.Audio.Media.DATE_MODIFIED)
+
+                val bookmark = cursor.getNullableLong(MediaStore.Audio.Media.BOOKMARK)
+                val sampleRate = cursor.getNullableInt(MediaStore.Audio.Media.SAMPLERATE)
+                val bitrate = cursor.getNullableInt(MediaStore.Audio.Media.BITRATE)
+                val bitsPerSample = cursor.getNullableInt(MediaStore.Audio.Media.BITS_PER_SAMPLE)
+
+                // Classification Flags (Defaulting to false if column is missing)
+                val isAudiobook = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_AUDIOBOOK) ?: false
+                val isMusic = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_MUSIC) ?: false
+                val isPodcast = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_PODCAST) ?: false
+                val isRecording = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_RECORDING) ?: false
+                val isAlarm = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_ALARM) ?: false
+                val isNotification = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_NOTIFICATION) ?: false
+                val isRingtone = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_RINGTONE) ?: false
+
+                // Status Flags (Defaulting to false if column is missing/for older APIs)
+                val isDownload = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_DOWNLOAD) ?: false
+                val isDrm = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_DRM) ?: false
+                val isFavorite = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_FAVORITE) ?: false
+                val isPending = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_PENDING) ?: false
+                val isTrashed = cursor.getNullableBoolean(MediaStore.Audio.Media.IS_TRASHED) ?: false
+
+
+                // Add only files with a reasonable duration (e.g., over 30 seconds)
                 if (duration > 30000) {
-                    files.add(AudioFile(id, contentUri, title, artist, duration))
+                    files.add(
+                        AudioFile(
+                            id, contentUri, title, artist, duration, albumArtBytes,
+                            album, albumArtist, author, composer, track, year, genre,
+                            size, dateAdded, dateModified,
+                            bookmark, sampleRate, bitrate, bitsPerSample,
+                            isAudiobook, isMusic, isPodcast, isRecording, isAlarm, isNotification, isRingtone,
+                            isDownload, isDrm, isFavorite, isPending, isTrashed
+                        )
+                    )
                 }
             }
         }
@@ -211,6 +370,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
         // Cancel the coroutine job when the activity is destroyed
         job.cancel()
     }
+
+
 
     fun onRateClick(item: MenuItem) {}
     fun onHelpClick(item: MenuItem) {}

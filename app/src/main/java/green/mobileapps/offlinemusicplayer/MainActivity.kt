@@ -201,7 +201,7 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             binding.textArtist.text = "${file.artist}$albumInfo"
 
             binding.root.setOnClickListener {
-                //activity.startMusicPlayback(file)
+                activity.startMusicPlayback(file)
             }
         }
     }

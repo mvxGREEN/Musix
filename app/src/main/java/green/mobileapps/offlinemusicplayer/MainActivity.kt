@@ -54,7 +54,6 @@ private fun Cursor.getNullableBoolean(columnName: String): Boolean? {
     return if (index != -1 && !isNull(index)) getInt(index) == 1 else null
 }
 
-
 data class AudioFile(
     // Core fields
     val id: Long,
@@ -229,7 +228,6 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
 
 // 3. Main Activity with Permission and Scanning Logic
 class MainActivity : AppCompatActivity(), CoroutineScope {
-
     // Coroutine setup
     private var job: Job = Job()
     override val coroutineContext: CoroutineContext
@@ -455,8 +453,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
     // New function to start the MusicService
     fun startMusicPlayback(file: AudioFile) {
         val intent = Intent(this, MusicService::class.java).apply {
-            action = MusicService.ACTION_PLAY
-            putExtra(MusicService.EXTRA_AUDIO_FILE, file)
+            action = "ACTION_PLAY"
+            putExtra("EXTRA_AUDIO_FILE", file)
         }
 
         // Use startForegroundService for starting the service from the background (e.g., after the app loads)

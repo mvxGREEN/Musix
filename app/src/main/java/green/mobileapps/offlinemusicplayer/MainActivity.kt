@@ -462,7 +462,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
     fun startMusicPlayback(file: AudioFile, index: Int) {
         // Get 30 track max. playlist
-        val fullPlaylist = ArrayList(musicAdapter.getCurrentList().take(30))
+        val fullPlaylist = ArrayList(musicAdapter.getCurrentList().take(60))
 
         val intent = Intent(this, MusicService::class.java).apply {
             action = "ACTION_PLAY"

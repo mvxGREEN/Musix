@@ -318,7 +318,7 @@ class MusicService : MediaSessionService() {
     }
 
     private fun getMediaSessionActivity(): PendingIntent? {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, MusicService::class.java)
         return PendingIntent.getActivity(
             this,
             0,

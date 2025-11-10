@@ -312,7 +312,7 @@ class MusicService : MediaSessionService() {
                 .setShowActionsInCompactView(0, 1, 2)
         )
 
-        builder.setPriority(NotificationCompat.PRIORITY_LOW)
+        builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
         builder.setContentIntent(
             PendingIntent.getActivity(
                 this, 2939,

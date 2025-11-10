@@ -433,7 +433,11 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
 
 
                 // Add only files with a reasonable duration (e.g., over 30 seconds)
-                if (duration > 30000) {
+                if (duration > 30000
+                    && !isRecording
+                    && !isRingtone
+                    && !isAlarm
+                    && !isNotification) {
                     files.add(
                         AudioFile(
                             id, contentUri, title, artist, duration,

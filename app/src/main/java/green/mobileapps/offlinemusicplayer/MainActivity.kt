@@ -471,8 +471,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope {
             startService(intent)
         }
 
-        // 2. Open the MusicActivity (the full-screen playback controls)
-        val activityIntent = Intent(this, MusicActivity::class.java)
+        val activityIntent = Intent(this, MusicActivity::class.java).apply {
+            // *** NEW: Pass the AudioFile to MusicActivity ***
+            putExtra("EXTRA_AUDIO_FILE", file)
+        }
         startActivity(activityIntent)
     }
 

@@ -232,6 +232,9 @@ class MusicService : MediaSessionService() {
                 .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                 .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                 .add(Player.COMMAND_STOP)
+                .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_MEDIA_ITEM)
+                .addAllCommands()
                 .build()
 
             return ConnectionResult.AcceptedResultBuilder(session)

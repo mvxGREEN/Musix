@@ -2,8 +2,10 @@ package green.mobileapps.offlinemusicplayer
 
 import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
@@ -13,27 +15,64 @@ import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 
-// You'll need to create the layout file: activity_music.xml
-// For demonstration, assume you have a layout with a PlayerView.
-
 class MusicActivity : AppCompatActivity() {
 
     private val TAG = "MusicActivity"
     private lateinit var playerView: PlayerView
     private lateinit var controllerFuture: ListenableFuture<MediaController>
 
+    // UI Elements for metadata
+    private lateinit var textTitle: TextView
+    private lateinit var textArtist: TextView
+
+    // Stored Audio File
+    private var currentAudioFile: AudioFile? = null
+
+    private val EXTRA_AUDIO_FILE = "EXTRA_AUDIO_FILE"
+
+
     @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Assume you have a layout with a PlayerView with ID 'player_view'
         setContentView(R.layout.activity_music)
-        playerView = findViewById(R.id.player_view)
 
-        // This is important for fullscreen-style controls, hides the timeline until media is loaded
+        // --- UI Initialization ---
+        playerView = findViewById(R.id.player_view)
+        // Assume these TextViews are defined in activity_music.xml
+        textTitle = findViewById(R.id.text_track_title)
+        textArtist = findViewById(R.id.text_track_artist)
+
         playerView.setShowFastForwardButton(true)
         playerView.setShowRewindButton(true)
         playerView.setShowNextButton(true)
         playerView.setShowPreviousButton(true)
+
+        // --- Retrieve AudioFile from Intent ---
+        currentAudioFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_AUDIO_FILE, AudioFile::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_AUDIO_FILE)
+        }
+
+        displayTrackMetadata()
+    }
+
+    /**
+     * Updates the UI with metadata from the received AudioFile.
+     */
+    private fun displayTrackMetadata() {
+        if (currentAudioFile != null) {
+            val file = currentAudioFile!!
+            val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
+            textTitle.text = "$trackPrefix${file.title}"
+
+            val albumInfo = if (file.album != null) " • ${file.album}" else ""
+            textArtist.text = "${file.artist}$albumInfo"
+        } else {
+            textTitle.text = "Track Not Found"
+            textArtist.text = "No Metadata"
+        }
     }
 
     // --- MediaController Setup ---
@@ -42,25 +81,18 @@ class MusicActivity : AppCompatActivity() {
         super.onStart()
         Log.d(TAG, "onStart: Creating MediaController")
 
-        // 1. Get the SessionToken for your MediaSessionService
         val sessionToken = SessionToken(
             this,
             ComponentName(this, MusicService::class.java)
         )
 
-        // 2. Build the MediaController asynchronously
         controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
 
-        // 3. Attach the controller to the PlayerView when the connection is successful
         controllerFuture.addListener({
             try {
-                // Controller is ready:
                 val mediaController = controllerFuture.get()
                 playerView.player = mediaController
                 Log.d(TAG, "MediaController connected and attached to PlayerView.")
-
-                // You can send commands here, e.g., to request the latest state or play
-                // If the service is already playing, the controller will automatically sync.
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error connecting MediaController", e)
@@ -70,9 +102,6 @@ class MusicActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // 4. Detach the controller from the PlayerView and release resources
-        // when the activity is no longer visible to prevent memory leaks
-        // and allow the service to continue playback independently.
         if (controllerFuture.isDone) {
             val mediaController = controllerFuture.get()
             playerView.player = null
@@ -81,16 +110,5 @@ class MusicActivity : AppCompatActivity() {
         }
     }
 
-    // --- Simple Playback Trigger (Example) ---
-    /* * In a real app, you'd likely get the AudioFile data from an intent or a repository.
-     * This example shows how you might send a command to the service.
-     */
-    fun startPlayback(file: AudioFile) {
-        // Send a custom intent to the service to start playback of a new file.
-        // This utilizes the logic you already implemented in MusicService.onStartCommand
-        val intent = Intent(this, MusicService::class.java).apply {
-            putExtra("EXTRA_AUDIO_FILE", file)
-        }
-        startService(intent)
-    }
+    // Removed the placeholder startPlayback function as it's now handled by MainActivity.
 }

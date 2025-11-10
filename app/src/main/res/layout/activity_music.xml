@@ -19,4 +19,29 @@
         app:show_timeout="5000"
         app:controller_layout_id="@layout/exo_player_control_view"
         app:use_controller="true"
-        app:surface_type="none" /> </androidx.constraintlayout.widget.ConstraintLayout>
+        app:surface_type="none" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/text_track_title"
+            android:text="default title"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/text_track_artist"
+            android:text="default artist"/>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

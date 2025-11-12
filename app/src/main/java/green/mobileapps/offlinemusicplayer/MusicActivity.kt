@@ -5,9 +5,11 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -24,6 +26,7 @@ class MusicActivity : AppCompatActivity() {
     // UI Elements for metadata
     private lateinit var textTitle: TextView
     private lateinit var textArtist: TextView
+    private lateinit var imageAlbumArt: ImageView // New Album Art ImageView
 
     // Stored Audio File
     private var currentAudioFile: AudioFile? = null
@@ -38,10 +41,16 @@ class MusicActivity : AppCompatActivity() {
 
         // --- UI Initialization ---
         playerView = findViewById(R.id.player_view)
-        // Assume these TextViews are defined in activity_music.xml
         textTitle = findViewById(R.id.text_track_title)
         textArtist = findViewById(R.id.text_track_artist)
+        imageAlbumArt = findViewById(R.id.image_album_art) // Initialize new ImageView
 
+        // Setting a default icon if no actual album art is available
+        // Note: You would replace this logic if you extract album art from the AudioFile
+        imageAlbumArt.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.music_note_24px))
+        imageAlbumArt.scaleType = ImageView.ScaleType.CENTER_INSIDE // Keep icon centered
+
+        // The XML now handles the PlayerView sizing, but we ensure all buttons are visible
         playerView.setShowFastForwardButton(true)
         playerView.setShowRewindButton(true)
         playerView.setShowNextButton(true)
@@ -65,10 +74,14 @@ class MusicActivity : AppCompatActivity() {
         if (currentAudioFile != null) {
             val file = currentAudioFile!!
             val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
+            // Display Title
             textTitle.text = "$trackPrefix${file.title}"
 
+            // Display Artist and Album, separated by a distinct dot
             val albumInfo = if (file.album != null) " • ${file.album}" else ""
             textArtist.text = "${file.artist}$albumInfo"
+
+            // TODO: Add logic here to load actual album art into imageAlbumArt if available in AudioFile
         } else {
             textTitle.text = "Track Not Found"
             textArtist.text = "No Metadata"
@@ -109,6 +122,4 @@ class MusicActivity : AppCompatActivity() {
             Log.d(TAG, "MediaController released.")
         }
     }
-
-    // Removed the placeholder startPlayback function as it's now handled by MainActivity.
 }

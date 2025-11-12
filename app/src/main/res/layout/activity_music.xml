@@ -7,41 +7,97 @@
     android:background="@android:color/black"
     tools:context=".MusicActivity">
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/player_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+    <!-- ============================================== -->
+    <!--                  BACKGROUND CONTENT: METADATA & ART    -->
+    <!-- The content is centered and visible across the entire screen behind the controls. -->
+    <!-- ============================================== -->
+
+    <!-- Album Art / Default Icon -->
+    <ImageView
+        android:id="@+id/image_album_art"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="16dp"
+        android:scaleType="centerCrop"
+        android:background="#1E1E1E"
+        android:contentDescription="@string/album_art_description"
+        app:layout_constraintBottom_toTopOf="@+id/text_track_title"
+        app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.4"
+        app:layout_constraintVertical_chainStyle="packed"
+        tools:src="@drawable/music_note_24px" />
 
-        app:show_timeout="5000"
-        app:controller_layout_id="@layout/exo_player_control_view"
-        app:use_controller="true"
-        app:surface_type="none" />
-
-    <LinearLayout
-        android:layout_width="wrap_content"
+    <!-- Track Title -->
+    <TextView
+        android:id="@+id/text_track_title"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:paddingTop="8dp"
+        android:ellipsize="marquee"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:marqueeRepeatLimit="marquee_forever"
+        android:scrollHorizontally="true"
+        android:singleLine="true"
+        android:textAlignment="center"
+        android:textColor="@android:color/white"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/text_track_artist"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/image_album_art"
+        tools:text="Track Title Goes Here" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/text_track_title"
-            android:text="default title"/>
+    <!-- Artist and Album Info -->
+    <TextView
+        android:id="@+id/text_track_artist"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="32dp"
+        android:singleLine="true"
+        android:textAlignment="center"
+        android:textColor="#B3FFFFFF"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/text_track_title"
+        tools:text="Artist Name • Album Name" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:id="@+id/text_track_artist"
-            android:text="default artist"/>
 
-    </LinearLayout>
+    <!-- ============================================== -->
+    <!--                  FOREGROUND: PLAYER CONTROLS   -->
+    <!-- This covers the entire screen, making controls always visible and allowing content to show through. -->
+    <!-- ============================================== -->
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        app:controller_layout_id="@layout/exo_player_control_view"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/text_track_artist"
+        app:auto_show="true"
+        app:hide_on_touch="false"
+        app:repeat_toggle_modes="all"
+        app:show_shuffle_button="true"
+        app:default_artwork="@drawable/music_note_24px"
+        app:surface_type="none"
+        app:use_controller="true"
+        app:show_timeout="0" /> <!-- Set to 0 to keep controls visible indefinitely -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>

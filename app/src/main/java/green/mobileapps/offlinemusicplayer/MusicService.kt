@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -35,8 +36,6 @@ class MusicService : MediaSessionService() {
     private var player: ExoPlayer? = null
     private var mediaSesh: MediaSession? = null
 
-    // RE-ADDED: Need MediaSessionCompat instance to generate the specific Token
-    // required by androidx.media.app.NotificationCompat.MediaStyle
     private var session: MediaSessionCompat? = null
 
     var manager: NotificationManager? = null
@@ -74,14 +73,21 @@ class MusicService : MediaSessionService() {
             .build()
     }
 
+    @OptIn(UnstableApi::class)
     override fun onCreate() {
         // 0. Create Notification Channel (Required for Android O+)
         createNotificationChannel()
 
         super.onCreate()
 
-        // 1. Initialize ExoPlayer (The Player)
-        player = ExoPlayer.Builder(this).build()
+        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
+        player = ExoPlayer.Builder(this)
+            .setAudioAttributes(audioAttributes, true)
+            .build()
         player?.repeatMode = Player.REPEAT_MODE_ALL
 
         // Add a listener for debugging and state management

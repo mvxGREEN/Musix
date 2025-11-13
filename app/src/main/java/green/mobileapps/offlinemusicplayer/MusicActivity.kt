@@ -22,10 +22,9 @@ class MusicActivity : AppCompatActivity() {
     private lateinit var playerView: PlayerView
     private lateinit var controllerFuture: ListenableFuture<MediaController>
 
-    // UI Elements for metadata
     private lateinit var textTitle: TextView
     private lateinit var textArtist: TextView
-    private lateinit var imageAlbumArt: ImageView // New Album Art ImageView
+    //private lateinit var imageAlbumArt: ImageView // New Album Art ImageView
 
     // Stored Audio File
     private var currentAudioFile: AudioFile? = null
@@ -45,8 +44,8 @@ class MusicActivity : AppCompatActivity() {
 
         // Setting a default icon if no actual album art is available
         // Note: You would replace this logic if you extract album art from the AudioFile
-        imageAlbumArt.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.music_note_24px))
-        imageAlbumArt.scaleType = ImageView.ScaleType.CENTER_INSIDE // Keep icon centered
+        //imageAlbumArt.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.music_note_24px))
+        //imageAlbumArt.scaleType = ImageView.ScaleType.CENTER_INSIDE // Keep icon centered
 
         // The XML now handles the PlayerView sizing, but we ensure all buttons are visible
         playerView.setShowFastForwardButton(true)

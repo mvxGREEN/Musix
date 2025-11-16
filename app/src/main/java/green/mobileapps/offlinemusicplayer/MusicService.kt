@@ -6,9 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.os.Build
-import android.support.v4.media.session.MediaSessionCompat // IMPORTANT: Retaining this import
+import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
@@ -26,12 +25,6 @@ import androidx.media3.session.SessionCommands
 import com.google.common.util.concurrent.ListenableFuture
 
 
-// You will likely need to create a simple data class for AudioFile in a separate file,
-// or use a placeholder class if it's not provided for compilation testing.
-// For the sake of this file, I'll assume the AudioFile class is available/defined elsewhere.
-
-// NOTE: We don't need MediaButtonReceiver.handleIntent anymore, as MediaSessionService handles it.
-
 class MusicService : MediaSessionService() {
     private var player: ExoPlayer? = null
     private var mediaSesh: MediaSession? = null
@@ -40,21 +33,23 @@ class MusicService : MediaSessionService() {
 
     var manager: NotificationManager? = null
 
-    // Constants for channel creation (still needed for Android O+)
+    // Constants for channel creation
     private val NOTIFICATION_CHANNEL_ID = "music_playback_channel"
     private val NOTIFICATION_CHANNEL_NAME = "Music Playback"
     private val TAG = "MusicService"
     private val NOTIFICATION_ID = 9876
 
-    // Constant key for intent extra, used in onStartCommand
+    // Constant key for intent extra - ONLY keeping the file extra for potential fallback/initial load,
+    // and removing the playlist/index extras.
     private val EXTRA_AUDIO_FILE = "EXTRA_AUDIO_FILE"
-    private val EXTRA_PLAYLIST = "EXTRA_PLAYLIST"
-    private val EXTRA_START_INDEX = "EXTRA_START_INDEX"
+    // private val EXTRA_PLAYLIST = "EXTRA_PLAYLIST" // REMOVED
+    // private val EXTRA_START_INDEX = "EXTRA_START_INDEX" // REMOVED
+    private val ACTION_PLAY_FROM_REPO = "ACTION_PLAY_FROM_REPO" // New action constant
 
-    // Temporary storage for the last loaded file information - NOW THE WHOLE PLAYLIST
-    var currentPlaylist: List<AudioFile> = emptyList()
+    // Removed currentPlaylist as the repository holds the data
+    // var currentPlaylist: List<AudioFile> = emptyList()
 
-    // Temporary storage for the last loaded file information
+    // Temporary storage for the last loaded file information - Kept for safe transitions/fallbacks
     private var lastLoadedFile: AudioFile? = null
 
     // Helper extension to convert our AudioFile model to Media3's MediaItem
@@ -121,11 +116,8 @@ class MusicService : MediaSessionService() {
         })
 
         // 2a. Initialize MediaSessionCompat (for Notification compatibility only)
-        // We use the Media3 player as the underlying engine.
         session = MediaSessionCompat(this, TAG).apply {
             setSessionActivity(getMediaSessionActivity())
-            // In a real app, you would also link the MediaSessionCompat to the player's session via its controller.
-            // For now, only the token is needed by the notification builder.
         }
 
         // 2b. Initialize MediaLibrarySession (The primary Media3 Controller Interface)
@@ -180,10 +172,15 @@ class MusicService : MediaSessionService() {
                 player?.seekToNext()
                 return START_STICKY
             }
+            ACTION_PLAY_FROM_REPO -> {
+                Log.d(TAG, "ACTION_PLAY_FROM_REPO received.")
+                handleNewPlaybackRequest() // New method to read from repository
+                return START_STICKY
+            }
         }
 
 
-        // 4b. Parse the intent and handle initial playback
+        // Fallback for single file start (old method) - largely unnecessary now
         val file: AudioFile? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_AUDIO_FILE, AudioFile::class.java)
         } else {
@@ -191,76 +188,78 @@ class MusicService : MediaSessionService() {
             intent?.getParcelableExtra(EXTRA_AUDIO_FILE)
         }
 
-        if (file != null && file != lastLoadedFile) {
-            lastLoadedFile = file
-            Log.d(TAG, "New file received: ${file.title}")
-            // Stop any current playback
-            player?.stop()
+        // Removed old intent parsing for EXTRA_PLAYLIST and EXTRA_START_INDEX
 
-            // --- CRITICAL FIX: Explicitly set the media list to force metadata sync ---
-            player?.setMediaItems(listOf(file.toMediaItem()))
-
-            player?.prepare()
-            player?.play()
-        } else if (file == null && player?.playbackState == Player.STATE_IDLE && lastLoadedFile != null) {
-            Log.d(TAG, "Restarting last file: ${lastLoadedFile!!.title}")
-
-            // --- CRITICAL FIX: Explicitly set the media list to force metadata sync ---
-            player?.setMediaItems(listOf(lastLoadedFile!!.toMediaItem()))
-
-            player?.prepare()
-            player?.play()
-        }
-
-        // 4b. Parse the intent and handle initial playback
-        val newPlaylist: List<AudioFile>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent?.getParcelableArrayListExtra(EXTRA_PLAYLIST, AudioFile::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent?.getParcelableArrayListExtra(EXTRA_PLAYLIST)
-        }
-
-        val startIndex = intent?.getIntExtra(EXTRA_START_INDEX, 0) ?: 0
-
-
-        if (newPlaylist != null && newPlaylist.isNotEmpty()) {
-            // Check if the playlist has actually changed
-            if (currentPlaylist != newPlaylist) {
-                currentPlaylist = newPlaylist
-                Log.d(TAG, "New playlist received with ${currentPlaylist.size} tracks. Starting index: $startIndex")
-
-                // Convert the full playlist to MediaItems
-                val mediaItems = currentPlaylist.map { it.toMediaItem() }
-
-                // Stop any current playback
-                player?.stop()
-
-                // Set the media list and start from the correct index
-                player?.setMediaItems(mediaItems)
-                player?.seekToDefaultPosition(startIndex) // Seek to the file that was clicked
-
-                player?.prepare()
-                player?.play()
-            } else if (player?.currentMediaItemIndex != startIndex) {
-                // Same playlist, but user clicked a different track
-                Log.d(TAG, "Same playlist, seeking to new index: $startIndex")
-                player?.seekTo(startIndex, 0)
-                player?.play() // Ensure playback starts if it was paused
-            } else {
-                // Same playlist, same track - maybe just play/unpause
-                if (player?.playbackState == Player.STATE_IDLE || player?.playbackState == Player.STATE_ENDED) {
-                    player?.prepare()
-                    player?.play()
-                } else if (player?.isPlaying == false) {
-                    player?.play()
-                }
-            }
-        }
+        // Removed old playback logic that relied on intent extras
 
         // Return the result of the default handling for MediaButtonReceiver, which
         // MediaSessionService handles internally by default.
         return super.onStartCommand(intent, flags, startId)
     }
+
+    /**
+     * Handles starting playback based on the state in the PlaylistRepository.
+     */
+    private fun handleNewPlaybackRequest() {
+        val newPlaylist = PlaylistRepository.getFullPlaylist()
+        val startIndex = PlaylistRepository.currentTrackIndex
+
+        if (newPlaylist.isEmpty()) {
+            Log.w(TAG, "Cannot start playback: PlaylistRepository is empty.")
+            return
+        }
+
+         val currentMediaItems = getAllMediaItems(player)
+        val newMediaIds = newPlaylist.map { it.id.toString() }
+
+        // Check if the playlist has actually changed by comparing media IDs
+        val playlistChanged = currentMediaItems.size != newMediaIds.size || currentMediaItems != newMediaIds
+
+        if (playlistChanged) {
+            Log.d(TAG, "Playlist changed or initialized. Loading ${newPlaylist.size} tracks. Starting index: $startIndex")
+
+            // Convert the full playlist to MediaItems
+            val mediaItems = newPlaylist.map { it.toMediaItem() }
+
+            player?.stop()
+            player?.clearMediaItems() // Clear existing items
+
+            // Set the media list and start from the correct index
+            player?.setMediaItems(mediaItems)
+            player?.seekToDefaultPosition(startIndex) // Seek to the file that was clicked
+
+            player?.prepare()
+            player?.play()
+        } else if (player?.currentMediaItemIndex != startIndex) {
+            // Same playlist, but user clicked a different track
+            Log.d(TAG, "Same playlist, seeking to new index: $startIndex")
+            player?.seekTo(startIndex, 0)
+            player?.play() // Ensure playback starts if it was paused
+        } else {
+            // Same playlist, same track - maybe just play/unpause
+            if (player?.playbackState == Player.STATE_IDLE || player?.playbackState == Player.STATE_ENDED) {
+                player?.prepare()
+                player?.play()
+            } else if (player?.isPlaying == false) {
+                player?.play()
+            }
+        }
+        // Update the lastLoadedFile for initial notification setup
+        lastLoadedFile = PlaylistRepository.getCurrentTrack()
+    }
+
+    fun getAllMediaItems(player: ExoPlayer?): List<MediaItem> {
+        val mediaItems = mutableListOf<MediaItem>()
+        val count = player?.mediaItemCount ?: 0 // Get the total number of media items in the playlist
+
+        for (i in 0 until count) {
+            player?.getMediaItemAt(i)?.let { mediaItem ->
+                mediaItems.add(mediaItem)
+            }
+        }
+        return mediaItems
+    }
+
 
     // 5. Cleanup when service is destroyed
     override fun onDestroy() {
@@ -336,7 +335,7 @@ class MusicService : MediaSessionService() {
     private fun createMediaNotification(): Notification {
         // Determine the current play/pause state
         val isPlaying = player?.isPlaying ?: false
-        val playPauseIcon = if (isPlaying) R.drawable.pause_24px else R.drawable.play_arrow_24px // Assume you have R.drawable.play_arrow_24px
+        val playPauseIcon = if (isPlaying) R.drawable.pause_24px else R.drawable.play_arrow_24px
         val playPauseAction = "PAUSE" // Action remains PAUSE, logic handles toggle
 
         var builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)

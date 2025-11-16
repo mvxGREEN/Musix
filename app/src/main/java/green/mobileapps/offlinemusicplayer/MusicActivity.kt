@@ -8,7 +8,6 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -27,9 +26,10 @@ class MusicActivity : AppCompatActivity() {
     private lateinit var textArtist: TextView
     private lateinit var imageAlbumArt: ImageView // New Album Art ImageView
 
-    // Stored Audio File
-    private var currentAudioFile: AudioFile? = null
+    // Stored Audio File no longer needed, relying on MediaController / Repository
+    // private var currentAudioFile: AudioFile? = null
 
+    // Intent extra key is now unused for data, only kept the field
     private val EXTRA_AUDIO_FILE = "EXTRA_AUDIO_FILE"
 
 
@@ -43,11 +43,6 @@ class MusicActivity : AppCompatActivity() {
         textTitle = findViewById(R.id.text_track_title)
         textArtist = findViewById(R.id.text_track_artist)
 
-        // Setting a default icon if no actual album art is available
-        // Note: You would replace this logic if you extract album art from the AudioFile
-        //imageAlbumArt.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.music_note_24px))
-        //imageAlbumArt.scaleType = ImageView.ScaleType.CENTER_INSIDE // Keep icon centered
-
         // The XML now handles the PlayerView sizing, but we ensure all buttons are visible
         playerView.setShowFastForwardButton(true)
         playerView.setShowRewindButton(true)
@@ -55,23 +50,21 @@ class MusicActivity : AppCompatActivity() {
         playerView.setShowPreviousButton(true)
         playerView.setShowShuffleButton(true)
 
-        // --- Retrieve AudioFile from Intent ---
-        currentAudioFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_AUDIO_FILE, AudioFile::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_AUDIO_FILE)
-        }
+        // --- Remove Intent Logic ---
+        // We no longer retrieve AudioFile from Intent.
+        // The display will be updated when MediaController connects, but we show
+        // the initial track from the Repository as a fallback/initial state.
 
-        displayTrackMetadata()
+        displayInitialTrackMetadata()
     }
 
     /**
-     * Updates the UI with metadata from the received AudioFile.
+     * Updates the UI with metadata from the received AudioFile in the Repository.
      */
-    private fun displayTrackMetadata() {
-        if (currentAudioFile != null) {
-            val file = currentAudioFile!!
+    private fun displayInitialTrackMetadata() {
+        // Retrieve the current playing track from the shared repository
+        val file = PlaylistRepository.getCurrentTrack()
+        if (file != null) {
             val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
             // Display Title
             textTitle.text = "$trackPrefix${file.title}"
@@ -82,8 +75,8 @@ class MusicActivity : AppCompatActivity() {
 
             // TODO: Add logic here to load actual album art into imageAlbumArt if available in AudioFile
         } else {
-            textTitle.text = "Track Not Found"
-            textArtist.text = "No Metadata"
+            textTitle.text = "Loading..."
+            textArtist.text = "Connect to Media Service"
         }
     }
 
@@ -105,9 +98,13 @@ class MusicActivity : AppCompatActivity() {
                 val mediaController = controllerFuture.get()
                 playerView.player = mediaController
                 Log.d(TAG, "MediaController connected and attached to PlayerView.")
+                // PlayerView will now automatically update based on the player state/metadata
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error connecting MediaController", e)
+                // Fallback display if connection fails
+                textTitle.text = "Connection Failed"
+                textArtist.text = "Check if MusicService is running"
             }
         }, MoreExecutors.directExecutor())
     }

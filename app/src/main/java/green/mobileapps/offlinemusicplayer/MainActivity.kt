@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,7 +16,6 @@ import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
@@ -25,11 +23,16 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import green.mobileapps.offlinemusicplayer.databinding.ItemMusicFileBinding
 import green.mobileapps.offlinemusicplayer.databinding.MainActivityBinding
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 // Helper extension function to safely get a string from a cursor
@@ -185,186 +188,80 @@ data class AudioFile(
     }
 }
 
-// 2. RecyclerView Adapter to display the list of files
-class MusicAdapter(private val activity: MainActivity, private var musicList: List<AudioFile>) :
-    RecyclerView.Adapter<MusicAdapter.MusicViewHolder>() {
+// 1. Playlist Repository (Singleton) - Acts as the persistent store
+// This is accessible by the Service, ViewModel, and Activities.
+object PlaylistRepository {
+    private val _audioFiles = MutableLiveData<List<AudioFile>>(emptyList())
+    val audioFiles: LiveData<List<AudioFile>> = _audioFiles
 
-    private var musicListFull: List<AudioFile> = musicList
+    // Store the last clicked/currently playing index in the full list
+    var currentTrackIndex: Int = -1
 
-    inner class MusicViewHolder(private val binding: ItemMusicFileBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(file: AudioFile) {
-            // show text info
-            val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
-            binding.textTitle.text = "$trackPrefix${file.title}"
-
-
-            val albumInfo = if (file.album != null) " • ${file.album}" else ""
-            binding.textArtist.text = "${file.artist}$albumInfo"
-
-            binding.root.setOnClickListener {
-                // Pass the file and its position to the activity's start function
-                activity.startMusicPlayback(file, adapterPosition)
-            }
-        }
+    fun setFiles(files: List<AudioFile>) {
+        _audioFiles.postValue(files)
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MusicViewHolder {
-        val binding = ItemMusicFileBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return MusicViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: MusicViewHolder, position: Int) {
-        holder.bind(musicList[position])
-    }
-
-    override fun getItemCount(): Int = musicList.size
-
-    fun updateList(newList: List<AudioFile>) {
-        // Update both the full list and the displayed list
-        musicListFull = newList
-        musicList = newList // Initially, the displayed list is the full list
-        notifyDataSetChanged()
-    }
-
-    fun getCurrentList(): List<AudioFile> = musicList
-
-    fun filterList(query: String) {
-        val lowerCaseQuery = query.lowercase()
-        musicList = if (lowerCaseQuery.isBlank()) {
-            // If the query is empty, show the full list
-            musicListFull
+    // Utility function for the service to get the current track
+    fun getCurrentTrack(): AudioFile? {
+        val list = _audioFiles.value
+        return if (list != null && currentTrackIndex >= 0 && currentTrackIndex < list.size) {
+            list[currentTrackIndex]
         } else {
-            // Filter the full list
-            musicListFull.filter {
-                it.title.lowercase().contains(lowerCaseQuery) ||
-                        it.artist.lowercase().contains(lowerCaseQuery)
-            }
+            null
         }
-        notifyDataSetChanged()
     }
+
+    // Utility function for the service to get the full list
+    fun getFullPlaylist(): List<AudioFile> = _audioFiles.value ?: emptyList()
 }
 
-// 3. Main Activity with Permission and Scanning Logic
-class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryTextListener {
+
+// 2. Music ViewModel - Used by MainActivity to load and filter the data
+class MusicViewModel(application: android.app.Application) : AndroidViewModel(application) {
+
+    // The full, unfiltered list from the repository
+    private val fullAudioList: LiveData<List<AudioFile>> = PlaylistRepository.audioFiles
+
+    // The list maintained for filtering purposes (displayed in RecyclerView)
+    private var musicListFull: List<AudioFile> = emptyList()
+    private val _filteredList = MutableLiveData<List<AudioFile>>(emptyList())
+    val filteredList: LiveData<List<AudioFile>> = _filteredList
+
+    private val _statusMessage = MutableLiveData<String>()
+    val statusMessage: LiveData<String> = _statusMessage
+
     // Coroutine setup
-    private var job: Job = Job()
-    override val coroutineContext: CoroutineContext
-        get() = Dispatchers.Main + job
+    private val scope = CoroutineScope(Dispatchers.IO + Job())
 
-    private lateinit var binding: MainActivityBinding
-
-    // Adapter needs access to the activity, so it must be initialized later
-    public lateinit var musicAdapter: MusicAdapter
-
-    // Determine the correct permission based on Android version
-    private val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_AUDIO
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
+    init {
+        // Observe the repository's full list to manage internal list and update filtered list
+        fullAudioList.observeForever { newList ->
+            musicListFull = newList
+            // When the full list is updated, apply the last filter (or show the full list if no filter)
+            filterList("")
+        }
     }
 
-    // For API 33+ (Android 13) we need to request POST_NOTIFICATIONS
-    private val notificationPermission = Manifest.permission.POST_NOTIFICATIONS
+    fun loadAudioFiles(context: Context) {
+        _statusMessage.postValue("Scanning for audio files...")
 
-    // Register the permission request contract for storage permission
-    private val requestStoragePermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            // Storage granted, now check notification permission (API 33+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                requestNotificationPermission()
+        scope.launch {
+            val audioList = loadAudioFilesFromStorage(context)
+            PlaylistRepository.setFiles(audioList) // Update the repository
+
+            if (audioList.isEmpty()) {
+                _statusMessage.postValue("No audio files found. Ensure you have MP3s in your music folder.")
             } else {
-                scanForAudioFiles()
+                // The filteredList observer handles the UI update
+                _statusMessage.postValue("Loaded ${audioList.size} tracks.")
             }
-        } else {
-            showStatus("Storage permission denied. Cannot scan local storage.")
         }
     }
 
-    // Register the permission request contract for notification permission
-    private val requestNotificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            println("Notification permission granted.")
-        } else {
-            println("Notification permission denied. Media controls won't be visible in status bar.")
-        }
-        // Always proceed to scan regardless of notification permission outcome
-        scanForAudioFiles()
-    }
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = MainActivityBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        setupRecyclerView()
-        setupSearchView()
-        checkPermissions()
-    }
-
-    private fun setupRecyclerView() {
-        musicAdapter = MusicAdapter(this, emptyList())
-        binding.recyclerViewMusic.adapter = musicAdapter
-    }
-
-    private fun setupSearchView() {
-        // Set up the SearchView listener
-        binding.searchViewMusic.setOnQueryTextListener(this)
-    }
-
-    private fun checkPermissions() {
-        if (ContextCompat.checkSelfPermission(this, mediaPermission) == PackageManager.PERMISSION_GRANTED) {
-            // Storage permission granted. Check notification permission next.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                requestNotificationPermission()
-            } else {
-                scanForAudioFiles()
-            }
-        } else {
-            // Request storage permission
-            requestStoragePermissionLauncher.launch(mediaPermission)
-        }
-    }
-
-    private fun requestNotificationPermission() {
-        if (ContextCompat.checkSelfPermission(this, notificationPermission) != PackageManager.PERMISSION_GRANTED) {
-            // Request notification permission
-            requestNotificationPermissionLauncher.launch(notificationPermission)
-        } else {
-            scanForAudioFiles()
-        }
-    }
-
-    private fun scanForAudioFiles() = launch {
-        showStatus("Scanning for audio files...")
-
-        val audioList = withContext(Dispatchers.IO) {
-            loadAudioFilesFromStorage()
-        }
-
-        if (audioList.isEmpty()) {
-            showStatus("No audio files found. Ensure you have MP3s in your music folder.")
-        } else {
-            musicAdapter.updateList(audioList)
-            binding.recyclerViewMusic.visibility = View.VISIBLE
-            binding.textStatus.visibility = View.GONE
-        }
-    }
-
-    // Function to load audio files using ContentResolver (runs on IO dispatcher)
-    private fun loadAudioFilesFromStorage(): List<AudioFile> {
+    // Function to load audio files using ContentResolver (MOVED from MainActivity)
+    private fun loadAudioFilesFromStorage(context: Context): List<AudioFile> {
         val files = mutableListOf<AudioFile>()
-        val contentResolver = applicationContext.contentResolver
+        val contentResolver = context.contentResolver
         val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 
         // Define ALL columns we want to retrieve
@@ -425,8 +322,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
                     id.toString()
                 )
 
-                // TODO album art ?
-
                 // --- Extended Metadata Extraction using safe helpers ---
                 val album = cursor.getNullableString(MediaStore.Audio.Media.ALBUM)
                 val albumArtist = cursor.getNullableString(MediaStore.Audio.Media.ALBUM_ARTIST)
@@ -464,12 +359,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
 
                 // Add only files with a reasonable duration (e.g., over 30 seconds)
                 if (duration > 30000
-                    && !album?.contains("Voice Recorder")!!
+                    && album != null // Add null check for album
+                    && !album.contains("Voice Recorder")
                     && !isRecording
                     && !isRingtone
                     && !isAlarm
                     && !isNotification) {
-                    //Log.d("loadAudioFilesFromStorage", "Adding file: $title, $artist, $album")
                     files.add(
                         AudioFile(
                             id, contentUri, title, artist, duration,
@@ -486,31 +381,235 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         return files
     }
 
-    fun startMusicPlayback(file: AudioFile, index: Int) {
-        // Get 30 track max. playlist
-        val fullPlaylist = ArrayList(musicAdapter.getCurrentList().take(200))
+    fun filterList(query: String) {
+        val lowerCaseQuery = query.lowercase()
+        val newList = if (lowerCaseQuery.isBlank()) {
+            musicListFull
+        } else {
+            musicListFull.filter {
+                it.title.lowercase().contains(lowerCaseQuery) ||
+                        it.artist.lowercase().contains(lowerCaseQuery)
+            }
+        }
+        _filteredList.value = newList
+    }
 
-        val intent = Intent(this, MusicService::class.java).apply {
-            action = "ACTION_PLAY"
-            // NEW: Pass the full playlist and the starting index
-            putExtra("EXTRA_AUDIO_FILE", file) // Still pass the first file for simpler handling
-            putExtra("EXTRA_PLAYLIST", fullPlaylist)
-            putExtra("EXTRA_START_INDEX", index)
+    override fun onCleared() {
+        super.onCleared()
+        scope.cancel()
+    }
+}
+
+
+// 3. RecyclerView Adapter to display the list of files
+class MusicAdapter(private val activity: MainActivity, private var musicList: List<AudioFile>) :
+    RecyclerView.Adapter<MusicAdapter.MusicViewHolder>() {
+
+    // Removed musicListFull and filterList as ViewModel manages filtering
+
+    inner class MusicViewHolder(private val binding: ItemMusicFileBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(file: AudioFile) {
+            // show text info
+            val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
+            binding.textTitle.text = "$trackPrefix${file.title}"
+
+
+            val albumInfo = if (file.album != null) " • ${file.album}" else ""
+            binding.textArtist.text = "${file.artist}$albumInfo"
+
+            binding.root.setOnClickListener {
+                // Pass the file and its position to the activity's start function.
+                // adapterPosition is the index in the *filtered* list.
+                activity.startMusicPlayback(file, adapterPosition)
+            }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MusicViewHolder {
+        val binding = ItemMusicFileBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return MusicViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: MusicViewHolder, position: Int) {
+        holder.bind(musicList[position])
+    }
+
+    override fun getItemCount(): Int = musicList.size
+
+    fun updateList(newList: List<AudioFile>) {
+        // Update the displayed list from the ViewModel's observer
+        musicList = newList
+        notifyDataSetChanged()
+    }
+
+    // Kept for startMusicPlayback but now unnecessary if we use the Repository directly
+    fun getCurrentList(): List<AudioFile> = musicList
+
+}
+
+// 4. Main Activity with Permission and Scanning Logic
+class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryTextListener {
+    // Coroutine setup
+    private var job: Job = Job()
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Main + job
+
+    private lateinit var binding: MainActivityBinding
+    private lateinit var viewModel: MusicViewModel // New ViewModel instance
+
+    // Adapter needs access to the activity, so it must be initialized later
+    public lateinit var musicAdapter: MusicAdapter
+
+    // Determine the correct permission based on Android version
+    private val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+
+    // For API 33+ (Android 13) we need to request POST_NOTIFICATIONS
+    private val notificationPermission = Manifest.permission.POST_NOTIFICATIONS
+
+    // Register the permission request contract for storage permission
+    private val requestStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            // Storage granted, now check notification permission (API 33+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                requestNotificationPermission()
+            } else {
+                viewModel.loadAudioFiles(applicationContext) // Call ViewModel to scan files
+            }
+        } else {
+            showStatus("Storage permission denied. Cannot scan local storage.")
+        }
+    }
+
+    // Register the permission request contract for notification permission
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            println("Notification permission granted.")
+        } else {
+            println("Notification permission denied. Media controls won't be visible in status bar.")
+        }
+        // Always proceed to scan regardless of notification permission outcome
+        viewModel.loadAudioFiles(applicationContext) // Call ViewModel to scan files
+    }
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = MainActivityBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        // Initialize ViewModel
+        viewModel = ViewModelProvider(this,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application))
+            .get(MusicViewModel::class.java)
+
+        setupRecyclerView()
+        setupSearchView()
+        setupObservers()
+        checkPermissions()
+    }
+
+    private fun setupObservers() {
+        // Observe the filtered list and update the adapter
+        viewModel.filteredList.observe(this) { audioList ->
+            if (audioList.isNotEmpty()) {
+                musicAdapter.updateList(audioList)
+                binding.recyclerViewMusic.visibility = View.VISIBLE
+                binding.textStatus.visibility = View.GONE
+            } else if (PlaylistRepository.getFullPlaylist().isNotEmpty()) {
+                // List is filtered to empty, but the full list exists
+                musicAdapter.updateList(emptyList())
+                showStatus("No tracks match your search.")
+            }
         }
 
-        // Use startForegroundService for starting the service from the background (e.g., after the app loads)
+        // Observe status messages (e.g., scanning, permission denied)
+        viewModel.statusMessage.observe(this) { message ->
+            // Update status UI if needed
+            if (!message.contains("Loaded")) {
+                showStatus(message)
+            }
+        }
+    }
+
+    private fun setupRecyclerView() {
+        musicAdapter = MusicAdapter(this, emptyList())
+        binding.recyclerViewMusic.adapter = musicAdapter
+    }
+
+    private fun setupSearchView() {
+        // Set up the SearchView listener
+        binding.searchViewMusic.setOnQueryTextListener(this)
+    }
+
+    private fun checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this, mediaPermission) == PackageManager.PERMISSION_GRANTED) {
+            // Storage permission granted. Check notification permission next.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                requestNotificationPermission()
+            } else {
+                viewModel.loadAudioFiles(applicationContext)
+            }
+        } else {
+            // Request storage permission
+            requestStoragePermissionLauncher.launch(mediaPermission)
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (ContextCompat.checkSelfPermission(this, notificationPermission) != PackageManager.PERMISSION_GRANTED) {
+            // Request notification permission
+            requestNotificationPermissionLauncher.launch(notificationPermission)
+        } else {
+            viewModel.loadAudioFiles(applicationContext)
+        }
+    }
+
+    // This function is now responsible for setting the current play state in the repository
+    // and starting the service without passing large data via Intent.
+    fun startMusicPlayback(file: AudioFile, filteredIndex: Int) {
+        // Get the full, unfiltered list from the persistent store.
+        val fullPlaylist = PlaylistRepository.getFullPlaylist()
+
+        // Find the index of the clicked file (by ID) in the FULL, unfiltered playlist.
+        // This is necessary because the MediaSessionService will be loaded with the full list.
+        val actualIndex = fullPlaylist.indexOfFirst { it.id == file.id }
+
+        if (actualIndex == -1) {
+            Log.e("MainActivity", "Error: AudioFile not found in the full playlist. Cannot start playback.")
+            return
+        }
+
+        // 1. Set the current track index in the persistent store
+        PlaylistRepository.currentTrackIndex = actualIndex
+
+        val intent = Intent(this, MusicService::class.java).apply {
+            // 2. Action to tell the service to start playback from the repository state
+            action = "ACTION_PLAY_FROM_REPO"
+        }
+
+        // Use startForegroundService for starting the service
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
 
-        val activityIntent = Intent(this, MusicActivity::class.java).apply {
-            // Pass the AudioFile to MusicActivity
-            putExtra("EXTRA_AUDIO_FILE", file)
-            putExtra("EXTRA_PLAYLIST", fullPlaylist)
-            putExtra("EXTRA_START_INDEX", index)
-        }
+        // Start MusicActivity without any intent extras for the playlist/file
+        val activityIntent = Intent(this, MusicActivity::class.java)
         startActivity(activityIntent)
     }
 
@@ -524,8 +623,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
      * Called when the query text is changed by the user. This is where the filtering happens.
      */
     override fun onQueryTextChange(newText: String?): Boolean {
-        // Filter the list as the user types
-        musicAdapter.filterList(newText.orEmpty())
+        // Filter the list using the ViewModel
+        viewModel.filterList(newText.orEmpty())
         return true
     }
 

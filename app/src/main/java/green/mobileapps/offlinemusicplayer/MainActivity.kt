@@ -584,6 +584,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         // Get the full, unfiltered list from the persistent store.
         val fullPlaylist = PlaylistRepository.getFullPlaylist()
 
+        if (fullPlaylist.isEmpty()) {
+            Log.e("MainActivity", "Error: Full playlist is empty. Cannot start playback.")
+            // You might want to show a Toast message here to the user.
+            return
+        }
+
         // Find the index of the clicked file (by ID) in the FULL, unfiltered playlist.
         // This is necessary because the MediaSessionService will be loaded with the full list.
         val actualIndex = fullPlaylist.indexOfFirst { it.id == file.id }

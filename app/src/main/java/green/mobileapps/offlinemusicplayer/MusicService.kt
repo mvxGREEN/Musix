@@ -117,13 +117,13 @@ class MusicService : MediaSessionService() {
 
         // 2a. Initialize MediaSessionCompat (for Notification compatibility only)
         session = MediaSessionCompat(this, TAG).apply {
-            setSessionActivity(getMediaSessionActivity())
+            //setSessionActivity(getMediaSessionActivity())
         }
 
         // 2b. Initialize MediaLibrarySession (The primary Media3 Controller Interface)
         mediaSesh = MediaSession.Builder(this, player!!)
             .setCallback(CustomMediaLibrarySessionCallback())
-            .setSessionActivity(getMediaSessionActivity()!!)
+            //.setSessionActivity(getMediaSessionActivity()!!)
             .build()
 
         manager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -209,11 +209,11 @@ class MusicService : MediaSessionService() {
             return
         }
 
-        val currentMediaItems = getAllMediaItems(player)
+        val currentMediaIds = getAllMediaItems(player) // Now returns IDs
         val newMediaIds = newPlaylist.map { it.id.toString() }
 
-        // Check if the playlist has actually changed by comparing media IDs
-        val playlistChanged = currentMediaItems.size != newMediaIds.size || currentMediaItems != newMediaIds
+        // Check if the playlist has actually changed by comparing media IDs list
+        val playlistChanged = currentMediaIds != newMediaIds // Direct comparison of ID lists
 
         if (playlistChanged) {
             Log.d(TAG, "Playlist changed or initialized. Loading ${newPlaylist.size} tracks. Starting index: $startIndex")
@@ -229,35 +229,38 @@ class MusicService : MediaSessionService() {
             player?.seekToDefaultPosition(startIndex) // Seek to the file that was clicked
 
             player?.prepare()
-            player?.play()
+            player?.play() // <--- CRITICAL: Start playback
         } else if (player?.currentMediaItemIndex != startIndex) {
             // Same playlist, but user clicked a different track
             Log.d(TAG, "Same playlist, seeking to new index: $startIndex")
             player?.seekTo(startIndex, 0)
-            player?.play() // Ensure playback starts if it was paused
+            player?.play() // <--- CRITICAL: Ensure playback starts
         } else {
             // Same playlist, same track - maybe just play/unpause
-            if (player?.playbackState == Player.STATE_IDLE || player?.playbackState == Player.STATE_ENDED) {
-                player?.prepare()
-                player?.play()
-            } else if (player?.isPlaying == false) {
-                player?.play()
+            Log.d(TAG, "Same playlist, same track. Toggling play/pause if needed.")
+            if (player?.isPlaying == false) {
+                player?.play() // <--- CRITICAL: Play if paused
             }
+            // If it's already playing, do nothing.
         }
         // Update the lastLoadedFile for initial notification setup
         lastLoadedFile = PlaylistRepository.getCurrentTrack()
+
+        // Force a notification update immediately after starting playback
+        updateMediaNotification()
     }
 
-    fun getAllMediaItems(player: ExoPlayer?): List<MediaItem> {
-        val mediaItems = mutableListOf<MediaItem>()
+    fun getAllMediaItems(player: ExoPlayer?): List<String> {
+        val mediaIds = mutableListOf<String>()
         val count = player?.mediaItemCount ?: 0 // Get the total number of media items in the playlist
 
         for (i in 0 until count) {
             player?.getMediaItemAt(i)?.let { mediaItem ->
-                mediaItems.add(mediaItem)
+                // Extract and add the media ID string
+                mediaIds.add(mediaItem.mediaId)
             }
         }
-        return mediaItems
+        return mediaIds
     }
 
 
@@ -322,16 +325,6 @@ class MusicService : MediaSessionService() {
         }
     }
 
-    private fun getMediaSessionActivity(): PendingIntent? {
-        val intent = Intent(this, MusicService::class.java)
-        return PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-    }
-
     private fun createMediaNotification(): Notification {
         // Determine the current play/pause state
         val isPlaying = player?.isPlaying ?: false
@@ -344,6 +337,21 @@ class MusicService : MediaSessionService() {
         val currentMediaItem = player?.currentMediaItem
         val title = currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Track Loaded"
         val artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist"
+
+        // --- CORRECT PENDING INTENT FOR MUSICACTIVITY ---
+        val activityIntent = Intent(this, MusicActivity::class.java).apply {
+            // Flag to bring the activity to the front if it's already running
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            2939,
+            activityIntent,
+            // Using FLAG_CANCEL_CURRENT is generally safer than FLAG_UPDATE_CURRENT for a main activity launch
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        // --------------------------------------------------
 
         builder.setSmallIcon(R.drawable.music_note_24px)
         builder.setAutoCancel(false) // Notification should stay visible
@@ -362,28 +370,16 @@ class MusicService : MediaSessionService() {
         builder.addAction(playPauseIcon, if(isPlaying) "Pause" else "Play", getPendingIntentForAction(playPauseAction))
         builder.addAction(R.drawable.skip_next_24px, "Next", getPendingIntentForAction("NEXT"))
 
-        // Use the MediaStyle to link the notification to the MediaSession
         builder.setStyle(
             MediaStyle()
-                // FIX: Use the MediaSessionCompat Token from the 'session' instance
                 .setMediaSession(session?.sessionToken)
-                // Show Previous (0), Play/Pause (1), and Next (2) in the compact view
                 .setShowActionsInCompactView(0, 1, 2)
         )
 
         builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
-        // START MODIFICATION: Change content intent to MusicActivity
-        builder.setContentIntent(
-            PendingIntent.getActivity(
-                this, 2939,
-                Intent(
-                    this,
-                    MusicActivity::class.java // Target MusicActivity
-                ).setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
-                PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        )
-        // END MODIFICATION
+
+        // This is the line that makes the notification click open the activity
+        builder.setContentIntent(contentIntent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder.setChannelId(NOTIFICATION_CHANNEL_ID)

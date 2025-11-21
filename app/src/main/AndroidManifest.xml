@@ -40,7 +40,7 @@
 
         <activity
             android:name=".MusicActivity"
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.AppCompat.NoActionBar">
             <!-- No intent-filter needed -->

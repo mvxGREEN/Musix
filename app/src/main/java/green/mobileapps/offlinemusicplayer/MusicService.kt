@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
@@ -115,15 +116,17 @@ class MusicService : MediaSessionService() {
             }
         })
 
+        var ctx = this
+
         // 2a. Initialize MediaSessionCompat (for Notification compatibility only)
         session = MediaSessionCompat(this, TAG).apply {
-            //setSessionActivity(getMediaSessionActivity())
+            setSessionActivity(getMediaSessionActivity(ctx))
         }
 
         // 2b. Initialize MediaLibrarySession (The primary Media3 Controller Interface)
         mediaSesh = MediaSession.Builder(this, player!!)
             .setCallback(CustomMediaLibrarySessionCallback())
-            //.setSessionActivity(getMediaSessionActivity()!!)
+            .setSessionActivity(getMediaSessionActivity(this)!!)
             .build()
 
         manager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -338,9 +341,7 @@ class MusicService : MediaSessionService() {
         val title = currentMediaItem?.mediaMetadata?.title?.toString() ?: "No Track Loaded"
         val artist = currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown Artist"
 
-        // --- CORRECT PENDING INTENT FOR MUSICACTIVITY ---
         val activityIntent = Intent(this, MusicActivity::class.java).apply {
-            // Flag to bring the activity to the front if it's already running
             flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
         }
 
@@ -348,8 +349,7 @@ class MusicService : MediaSessionService() {
             this,
             2939,
             activityIntent,
-            // Using FLAG_CANCEL_CURRENT is generally safer than FLAG_UPDATE_CURRENT for a main activity launch
-            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         // --------------------------------------------------
 
@@ -379,13 +379,26 @@ class MusicService : MediaSessionService() {
         builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
         // This is the line that makes the notification click open the activity
-        builder.setContentIntent(contentIntent)
+        //builder.setContentIntent(contentIntent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder.setChannelId(NOTIFICATION_CHANNEL_ID)
         }
 
         return builder.build()
+    }
+
+    private fun getMediaSessionActivity(context: Context): PendingIntent? {
+        val intent = Intent(context, MusicActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        // Use FLAG_UPDATE_CURRENT for consistency with session updates
+        return PendingIntent.getActivity(
+            context,
+            0, // Use a fixed request code (e.g., 0)
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     /**

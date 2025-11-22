@@ -8,6 +8,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -20,6 +21,16 @@ class MusicActivity : AppCompatActivity() {
     private val TAG = "MusicActivity"
     private lateinit var playerView: PlayerView
     private lateinit var controllerFuture: ListenableFuture<MediaController>
+    private var mediaController: MediaController? = null // Store the connected controller
+    // 2. Define the Player.Listener
+    private val playerListener = object : Player.Listener {
+        // This callback is triggered when the media item (track) changes
+        override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+            super.onMediaItemTransition(mediaItem, reason)
+            Log.d(TAG, "onMediaItemTransition: New track detected. Updating metadata UI.")
+            updateMetadataUI(mediaItem)
+        }
+    }
 
     // UI Elements for metadata
     private lateinit var textTitle: TextView
@@ -50,17 +61,12 @@ class MusicActivity : AppCompatActivity() {
         playerView.setShowPreviousButton(true)
         playerView.setShowShuffleButton(true)
 
-        // --- Remove Intent Logic ---
-        // We no longer retrieve AudioFile from Intent.
-        // The display will be updated when MediaController connects, but we show
-        // the initial track from the Repository as a fallback/initial state.
-
-        displayInitialTrackMetadata()
+        //displayInitialTrackMetadata()
     }
 
     /**
      * Updates the UI with metadata from the received AudioFile in the Repository.
-     */
+
     private fun displayInitialTrackMetadata() {
         // Retrieve the current playing track from the shared repository
         val file = PlaylistRepository.getCurrentTrack()
@@ -79,8 +85,32 @@ class MusicActivity : AppCompatActivity() {
             textArtist.text = "Connect to Media Service"
         }
     }
+     */
 
-    // --- MediaController Setup ---
+    /**
+     * Updates the UI (Title/Artist) based on the current MediaItem's metadata.
+     */
+    private fun updateMetadataUI(mediaItem: androidx.media3.common.MediaItem?) {
+        val metadata = mediaItem?.mediaMetadata
+        if (metadata != null) {
+            // Title
+            val title = metadata.title?.toString() ?: "Unknown Title"
+            textTitle.text = title
+
+            // Artist and Album
+            val artist = metadata.artist?.toString() ?: "Unknown Artist"
+            val album = metadata.albumTitle?.toString()
+            val artistText = if (album.isNullOrBlank()) artist else "$artist • $album"
+            textArtist.text = artistText
+
+            // TODO: Add album art loading here if the MediaItem has artwork URI/Bitmap.
+
+        } else {
+            // Fallback for a disconnected or empty state
+            textTitle.text = "No Track Loaded"
+            textArtist.text = "Waiting for Media Service"
+        }
+    }
 
     override fun onStart() {
         super.onStart()
@@ -95,10 +125,14 @@ class MusicActivity : AppCompatActivity() {
 
         controllerFuture.addListener({
             try {
-                val mediaController = controllerFuture.get()
+                mediaController = controllerFuture.get()
                 playerView.player = mediaController
-                Log.d(TAG, "MediaController connected and attached to PlayerView.")
-                // PlayerView will now automatically update based on the player state/metadata
+                // 3. Attach the listener to the connected controller
+                mediaController?.addListener(playerListener)
+                Log.d(TAG, "MediaController connected, attached to PlayerView, and listener added.")
+
+                // 4. Update the UI with the *current* track immediately upon connection
+                updateMetadataUI(mediaController?.currentMediaItem)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error connecting MediaController", e)
@@ -112,10 +146,12 @@ class MusicActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         if (controllerFuture.isDone) {
-            val mediaController = controllerFuture.get()
+            // 5. Safely remove the listener and release the controller
+            mediaController?.removeListener(playerListener)
             playerView.player = null
             MediaController.releaseFuture(controllerFuture)
-            Log.d(TAG, "MediaController released.")
+            Log.d(TAG, "MediaController listener removed and controller released.")
         }
+        mediaController = null
     }
 }

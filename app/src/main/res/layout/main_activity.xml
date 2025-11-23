@@ -24,6 +24,37 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
+            <!-- NEW: Back button for Edit Mode (Initially Hidden) -->
+            <ImageButton
+                android:id="@+id/button_back_edit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:contentDescription="Exit Edit Mode"
+                android:padding="8dp"
+                android:src="@drawable/arrow_back_24px"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:tint="@android:color/white"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true"/>
+
+            <!-- NEW: Title for Edit Mode (Initially Hidden) -->
+            <TextView
+                android:id="@+id/text_edit_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Edit Track Metadata"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintStart_toEndOf="@id/button_back_edit"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"/>
+
             <androidx.appcompat.widget.SearchView
                 android:id="@+id/search_view_music"
                 android:layout_width="0dp"

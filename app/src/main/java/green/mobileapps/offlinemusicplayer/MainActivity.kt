@@ -16,7 +16,6 @@ import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.MenuItem
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -44,7 +43,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay // ADDED: Import delay for timing fix
 import kotlin.coroutines.CoroutineContext
+import androidx.activity.addCallback // Import for new back press handling
+// REMOVED: import com.bumptech.glide.load.resource.bitmap.VideoDecoder // Removed unresolvable import
 
 // --- SORTING DEFINITIONS ---
 enum class SortBy { LAST_MODIFIED, TITLE, ARTIST, ALBUM, DURATION }
@@ -376,7 +378,8 @@ class MusicViewModel(application: android.app.Application) : AndroidViewModel(ap
             MediaStore.Audio.Media.IS_DRM,
             MediaStore.Audio.Media.IS_FAVORITE,
             MediaStore.Audio.Media.IS_PENDING,
-            MediaStore.Audio.Media.IS_TRASHED
+            MediaStore.Audio.Media.IS_TRASHED,
+            MediaStore.MediaColumns.MIME_TYPE // Include MIME_TYPE
         )
 
         val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
@@ -561,7 +564,6 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             val isEditing = adapterPosition == editingPosition
 
             // --- Set Text Content (Display or Edit) ---
-            // REMOVED: val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
             val fullTitleText = file.title // Title now only contains the raw title, no prefix
 
             // UNDO MODIFICATION: Re-include the album name in the artist text
@@ -622,7 +624,9 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
 
             // Use Glide to load the image
             com.bumptech.glide.Glide.with(itemView.context)
+                .asDrawable() // Ensure we load it as a Drawable
                 .load(imageSourceUri) // Use the conditionally selected URI
+                // REMOVED: The problematic .set(VideoDecoder.SKIP_MEDIA_STORE_URI, true) call
                 .transform(com.bumptech.glide.load.resource.bitmap.CircleCrop())
                 .placeholder(R.drawable.default_album_art_192px)
                 .error(R.drawable.default_album_art_192px)
@@ -634,7 +638,9 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                         isFirstResource: Boolean
                     ): Boolean {
                         // Log the failure to diagnose
-                        Log.e("Glide", "Album Art Load Failed for URI: $imageSourceUri", e)
+                        // Log.e("Glide", "Album Art Load Failed for URI: $imageSourceUri", e)
+                        // Note: The main goal is to suppress internal logs,
+                        // but keeping this comment for reference.
                         return false
                     }
 
@@ -660,7 +666,7 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                     // Normal playback behavior
                     activity.startMusicPlayback(file, adapterPosition)
                 }
-                // If editing, clicking the root view does nothing, as the user must save or click outside.
+                // If editing, clicking the root view does nothing, as the user must save or exit.
             }
 
             // NEW: Long click listener to enter edit mode
@@ -723,9 +729,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     public lateinit var musicAdapter: MusicAdapter
     private lateinit var sortButton: ImageButton // Reference to the new sort criterion button
     private lateinit var sortDirectionButton: ImageButton // Reference to the new sort direction button
+    private lateinit var backButton: ImageButton // NEW: Reference to the new back button
 
-    // NEW: Store the item currently being edited, used for click-outside detection
-    private var currentlyEditingItem: View? = null
+    // REMOVED: currentlyEditingItem is no longer needed since we are not using dispatchTouchEvent
 
     // Determine the correct permission based on Android version
     private val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -774,8 +780,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
             // Permission granted, now save the data (which is stored in temp properties)
             executePendingMetadataUpdate()
         } else {
-            Toast.makeText(this, "Permission to modify file denied.", Toast.LENGTH_SHORT).show()
-            // Exit editing mode gracefully
+            Toast.makeText(this, "Permission to modify file denied. Exiting editor.", Toast.LENGTH_SHORT).show()
+            // Exit editing mode gracefully without saving
             exitEditingMode()
         }
     }
@@ -801,48 +807,66 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         sortButton = toolbarLayout?.findViewById(R.id.button_sort) ?: throw IllegalStateException("Sort button not found in toolbar layout")
         // NEW: Initialize the direction button
         sortDirectionButton = toolbarLayout.findViewById(R.id.button_sort_direction) ?: throw IllegalStateException("Sort direction button not found in toolbar layout")
+        // NEW: Initialize the back button
+        backButton = toolbarLayout.findViewById(R.id.button_back_edit) ?: throw IllegalStateException("Back button not found in toolbar layout")
+
 
         setupRecyclerView()
         setupSearchView()
         setupSortButton() // Setup the sort criterion button logic
         setupSortDirectionButton() // NEW: Setup the sort direction toggle logic
+        setupBackButton() // NEW: Setup the back button logic for edit mode
+        setupSystemBackPressHandler() // NEW: Setup system back press handler
         setupSwipeRefresh()
         setupObservers()
         checkPermissions()
     }
 
-    // NEW: Override dispatchTouchEvent to handle click-outside-item event
-    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        // If we are in editing mode, check if the touch event is outside the editing item
-        if (currentlyEditingItem != null && ev?.action == MotionEvent.ACTION_DOWN) {
-            val view = currentlyEditingItem!!
-            val outRect = android.graphics.Rect()
-            view.getGlobalVisibleRect(outRect)
+    // REMOVED: isTouchInsideView and dispatchTouchEvent logic
 
-            // If the touch is outside the currently edited item's boundaries
-            if (!outRect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
-                Log.d("MainActivity", "Click detected outside editing item. Saving/Exiting.")
-                // Get the current editing position from the adapter
-                val position = musicAdapter.getEditingPosition()
-                if (position != RecyclerView.NO_POSITION) {
-                    // Find the ViewHolder and trigger the save/exit logic
-                    val viewHolder = binding.recyclerViewMusic.findViewHolderForAdapterPosition(position) as? MusicAdapter.MusicViewHolder
-                    val file = musicAdapter.getCurrentList().getOrNull(position)
-                    val titleEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_title)
-                    val artistEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_artist)
+    // NEW: Function to setup the back button (in-toolbar) logic
+    private fun setupBackButton() {
+        backButton.setOnClickListener {
+            // On back click, treat it as an implicit cancel/exit attempt, saving if changes were made.
+            handleExitEditMode()
+        }
+    }
 
-                    if (file != null && titleEditText != null && artistEditText != null) {
-                        // Pass the current EditText values to the save logic
-                        saveEditAndExit(file, titleEditText.text.toString().trim(), artistEditText.text.toString().trim())
-                    } else {
-                        // If we can't get the data, just exit editing mode
-                        exitEditingMode()
-                    }
-                }
+    // NEW: Function to handle system back presses
+    private fun setupSystemBackPressHandler() {
+        onBackPressedDispatcher.addCallback(this) {
+            if (musicAdapter.getEditingPosition() != RecyclerView.NO_POSITION) {
+                // We are in edit mode, handle the back press by saving/exiting
+                handleExitEditMode()
+            } else {
+                // Not in edit mode, proceed with default back behavior (closing app/activity)
+                isEnabled = false // Disable this callback temporarily
+                onBackPressedDispatcher.onBackPressed() // Call system back
+                isEnabled = true // Re-enable for future use
             }
         }
-        return super.dispatchTouchEvent(ev)
     }
+
+    // NEW: Unified function to trigger the save/exit logic
+    private fun handleExitEditMode() {
+        val position = musicAdapter.getEditingPosition()
+        if (position != RecyclerView.NO_POSITION) {
+            // Get data from the view holder that is currently being edited
+            val viewHolder = binding.recyclerViewMusic.findViewHolderForAdapterPosition(position) as? MusicAdapter.MusicViewHolder
+            val file = musicAdapter.getCurrentList().getOrNull(position)
+            val titleEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_title)
+            val artistEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_artist)
+
+            if (file != null && titleEditText != null && artistEditText != null) {
+                // Pass the current EditText values to the save logic
+                saveEditAndExit(file, titleEditText.text.toString().trim(), artistEditText.text.toString().trim())
+            } else {
+                // If we can't get the data (e.g., view recycled), just exit editing mode
+                exitEditingMode()
+            }
+        }
+    }
+
 
     // NEW: Function to setup the sort direction toggle button
     private fun setupSortDirectionButton() {
@@ -909,6 +933,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         hideKeyboardAndClearFocus()
         // Ensure editing mode is reset if activity was paused during edit
         if (musicAdapter.getEditingPosition() != RecyclerView.NO_POSITION) {
+            // Call exitEditingMode() without save logic if resumed from pause
             exitEditingMode()
         }
     }
@@ -1050,19 +1075,26 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         val viewHolder = binding.recyclerViewMusic.findViewHolderForAdapterPosition(position)
         if (viewHolder != null) {
 
-            // FIX: Disable the search view and clear its focus when entering edit mode
+            // 1. Hide search and sort controls, show back button and title
+            binding.searchViewMusic.visibility = View.GONE
+            binding.buttonSort.visibility = View.GONE
+            binding.buttonSortDirection.visibility = View.GONE
+            binding.buttonBackEdit.visibility = View.VISIBLE
+            binding.textEditTitle.visibility = View.VISIBLE
+
+            // 2. Disable search view interaction
             binding.searchViewMusic.isEnabled = false
             binding.searchViewMusic.clearFocus()
 
-            currentlyEditingItem = viewHolder.itemView // Store the view for click-outside detection
+            // 3. Set editing position in adapter
             musicAdapter.setEditingPosition(position)
 
-            // Give the EditText focus again after the notifyItemChanged rebinds the view
+            // 4. Give focus to the EditText
             val editText = viewHolder.itemView.findViewById<EditText>(R.id.edit_text_title)
             editText?.requestFocus()
 
             // Show toast message for guidance
-            Toast.makeText(this, "Editing: Click save or outside the item to finish.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Editing: Click save or back to finish.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1117,10 +1149,26 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
 
         launch(Dispatchers.IO) {
             try {
+                // 1. Determine MIME type (crucial for MediaStore to identify file correctly)
+                val mimeType = contentResolver.getType(file.uri) ?: "audio/mpeg" // Default to mp3
+
+                // 2. Prepare ContentValues
                 val contentValues = ContentValues().apply {
                     put(MediaStore.Audio.Media.TITLE, newTitle)
                     put(MediaStore.Audio.Media.ARTIST, newArtist)
+                    // Explicitly update the modification date (in seconds)
+                    put(MediaStore.Audio.Media.DATE_MODIFIED, System.currentTimeMillis() / 1000)
+                    // Explicitly include MIME type
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                 }
+
+                // Log the values we are attempting to write
+                Log.d("MainActivity", "Attempting to update URI: ${file.uri}")
+                Log.d("MainActivity", "ContentValues: $contentValues")
+
+                // CRITICAL FIX: Add a small delay to ensure the system fully applies the write permission
+                // granted by the user via createWriteRequest before proceeding with the update.
+                delay(500) // 500ms delay
 
                 // Use the file's content URI to perform the update
                 val rowsUpdated = contentResolver.update(file.uri, contentValues, null, null)
@@ -1130,18 +1178,22 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
                         Toast.makeText(this@MainActivity, "Metadata updated successfully!", Toast.LENGTH_SHORT).show()
 
                         // Update the repository with the new, modified AudioFile object
+                        // Note: The DATE_MODIFIED and MIME_TYPE fields are not part of the AudioFile class here,
+                        // but updating the core fields (title/artist) is sufficient for UI refresh.
                         val updatedFile = file.copy(title = newTitle, artist = newArtist)
                         PlaylistRepository.updateFile(updatedFile)
                         // ViewModel will observe the change and trigger list re-render/re-sort
                     } else {
-                        Toast.makeText(this@MainActivity, "Update failed: File not found or no changes made.", Toast.LENGTH_LONG).show()
+                        // Log the failure to diagnose in the console
+                        Log.e("MainActivity", "Update failed: Rows updated = $rowsUpdated for URI: ${file.uri}")
+                        Toast.makeText(this@MainActivity, "Update failed: File not found or no changes made. Check logs.", Toast.LENGTH_LONG).show()
                     }
                     exitEditingMode()
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error updating metadata for ${file.uri}", e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Error: Could not save metadata. Check permissions.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Fatal Error: Could not save metadata. Check permissions and logs.", Toast.LENGTH_LONG).show()
                     exitEditingMode()
                 }
             }
@@ -1151,12 +1203,18 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     private fun exitEditingMode() {
         // 1. Hide the keyboard
         hideKeyboardAndClearFocus()
+
         // 2. Clear the editing state in the adapter
         musicAdapter.setEditingPosition(RecyclerView.NO_POSITION)
-        // 3. Clear the global editing view reference
-        currentlyEditingItem = null
 
-        // FIX: Re-enable the search view when exiting edit mode
+        // 3. Restore visibility of search and sort controls
+        binding.searchViewMusic.visibility = View.VISIBLE
+        binding.buttonSort.visibility = View.VISIBLE
+        binding.buttonSortDirection.visibility = View.VISIBLE
+        binding.buttonBackEdit.visibility = View.GONE
+        binding.textEditTitle.visibility = View.GONE
+
+        // 4. Re-enable the search view interaction
         binding.searchViewMusic.isEnabled = true
     }
 
@@ -1172,7 +1230,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
      * Called when the query text is changed by the user. This is where the filtering happens.
      */
     override fun onQueryTextChange(newText: String?): Boolean {
-        // FIX: Only process text changes if the search view is enabled
+        // Only process text changes if the search view is visible/enabled (i.e., not in edit mode)
         if (binding.searchViewMusic.isEnabled) {
             // Filter the list using the ViewModel
             viewModel.filterList(newText.orEmpty())
@@ -1207,4 +1265,4 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     fun onRateClick(item: MenuItem) {}
     fun onHelpClick(item: MenuItem) {}
     fun showBigFrag(item: MenuItem) {}
-}
+    }

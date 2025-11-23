@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.ContentUris
+import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
@@ -15,12 +16,17 @@ import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.PopupMenu
+import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
@@ -37,12 +43,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
 // --- SORTING DEFINITIONS ---
 enum class SortBy { LAST_MODIFIED, TITLE, ARTIST, ALBUM, DURATION }
 data class SortState(val by: SortBy, val ascending: Boolean)
 // ---------------------------
+
+// --- NEW: Interface for Adapter/Activity communication for editing ---
+interface MusicEditListener {
+    /**
+     * Called by the ViewHolder on long click to initiate editing mode.
+     * @param position The adapter position of the item.
+     */
+    fun startEditing(position: Int)
+
+    /**
+     * Called by the ViewHolder's save button or on click outside event.
+     * @param audioFile The original AudioFile object.
+     * @param newTitle The new title value from the EditText.
+     * @param newArtist The new artist value from the EditText.
+     */
+    fun saveEditAndExit(audioFile: AudioFile, newTitle: String, newArtist: String)
+}
+// -------------------------------------------------------------------
 
 // Helper extension function to safely get a string from a cursor
 private fun Cursor.getNullableString(columnName: String): String? {
@@ -223,6 +248,19 @@ object PlaylistRepository {
 
     fun setFiles(files: List<AudioFile>) {
         _audioFiles.postValue(files)
+    }
+
+    // NEW: Function to update a single file in the repository's list
+    fun updateFile(updatedFile: AudioFile) {
+        val currentList = _audioFiles.value.orEmpty().toMutableList()
+        val index = currentList.indexOfFirst { it.id == updatedFile.id }
+        if (index != -1) {
+            currentList[index] = updatedFile
+            _audioFiles.postValue(currentList)
+            Log.d("Repository", "Updated file with ID: ${updatedFile.id}")
+        } else {
+            Log.w("Repository", "File with ID ${updatedFile.id} not found for update.")
+        }
     }
 
     // Utility function for the service to get the current track
@@ -495,21 +533,71 @@ class MusicViewModel(application: android.app.Application) : AndroidViewModel(ap
 
 
 // recyclerview adapter to display the list of files
-class MusicAdapter(private val activity: MainActivity, private var musicList: List<AudioFile>) :
+class MusicAdapter(private val activity: MainActivity, private var musicList: List<AudioFile>, private val editListener: MusicEditListener) :
     RecyclerView.Adapter<MusicAdapter.MusicViewHolder>() {
+
+    // NEW: Property to track which item is currently in edit mode.
+    private var editingPosition: Int = RecyclerView.NO_POSITION
+
+    fun setEditingPosition(newPosition: Int) {
+        val oldPosition = editingPosition
+        editingPosition = newPosition
+        // We only notify if the new position is different or if the old position was valid.
+        if (oldPosition != RecyclerView.NO_POSITION) {
+            notifyItemChanged(oldPosition)
+        }
+        if (newPosition != RecyclerView.NO_POSITION) {
+            notifyItemChanged(newPosition)
+        }
+    }
+
+    // NEW: Get the currently editing position
+    fun getEditingPosition(): Int = editingPosition
 
     inner class MusicViewHolder(private val binding: ItemMusicFileBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(file: AudioFile) {
-            // show text info
+            val isEditing = adapterPosition == editingPosition
+
+            // --- Set Text Content (Display or Edit) ---
             val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
-            binding.textTitle.text = "$trackPrefix${file.title}"
+            val fullTitleText = "$trackPrefix${file.title}"
+            // MODIFIED: fullArtistText now only contains the artist name
+            val fullArtistText = file.artist
 
-            val albumInfo = if (file.album != null) " • ${file.album}" else ""
-            binding.textArtist.text = "${file.artist}$albumInfo"
+            // 1. Display/Edit View Setup
+            if (isEditing) {
+                // Set EditTexts visible and TextViews GONE
+                binding.textTitle.visibility = View.GONE
+                binding.textArtist.visibility = View.GONE
+                binding.editTextTitle.visibility = View.VISIBLE
+                binding.editTextArtist.visibility = View.VISIBLE
+                binding.buttonSaveEdit.visibility = View.VISIBLE
 
-            // --- FINAL ALBUM ART LOADING FIX ---
+                // Set initial text for editing, removing the track prefix from the title
+                binding.editTextTitle.setText(file.title)
+                binding.editTextArtist.setText(file.artist)
+
+                // Request focus and show keyboard
+                binding.editTextTitle.requestFocus()
+                (itemView.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(binding.editTextTitle, InputMethodManager.SHOW_IMPLICIT)
+            } else {
+                // Set TextViews visible and EditTexts GONE
+                binding.textTitle.visibility = View.VISIBLE
+                binding.textArtist.visibility = View.VISIBLE
+                binding.editTextTitle.visibility = View.GONE
+                binding.editTextArtist.visibility = View.GONE
+                binding.buttonSaveEdit.visibility = View.GONE
+
+                // Set display text
+                binding.textTitle.text = fullTitleText
+                // MODIFIED: Only setting artist name here
+                binding.textArtist.text = fullArtistText
+            }
+
+            // 2. Album Art Loading (Unchanged)
             // If the album name is generic ("documents" or "music"), the MediaStore's albumId cache
             // is likely corrupted/unreliable, causing incorrect art to load.
             // In these cases, we must force Glide to load the embedded art directly from the file URI.
@@ -564,14 +652,31 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             // --- FINAL FIX END ---
 
 
-            // on click listener
+            // 3. Click Listeners
             binding.root.setOnClickListener {
-                // Pass the file and its position to the activity's start function.
-                // adapterPosition is the index in the *filtered* list.
-                activity.startMusicPlayback(file, adapterPosition)
+                if (!isEditing) {
+                    // Normal playback behavior
+                    activity.startMusicPlayback(file, adapterPosition)
+                }
+                // If editing, clicking the root view does nothing, as the user must save or click outside.
             }
 
-            // todo on long click listener: edit track info, delete track, etc.
+            // NEW: Long click listener to enter edit mode
+            binding.root.setOnLongClickListener {
+                if (editingPosition != RecyclerView.NO_POSITION) {
+                    // Already editing something, exit current edit before starting a new one
+                    editListener.saveEditAndExit(musicList[editingPosition], "", "") // Pass empty strings, indicating an unsaved exit
+                }
+                editListener.startEditing(adapterPosition)
+                true // Consume the long click event
+            }
+
+            // NEW: Save button click listener
+            binding.buttonSaveEdit.setOnClickListener {
+                val newTitle = binding.editTextTitle.text.toString().trim()
+                val newArtist = binding.editTextArtist.text.toString().trim()
+                editListener.saveEditAndExit(file, newTitle, newArtist)
+            }
         }
     }
 
@@ -602,7 +707,8 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
 }
 
 // 4. Main Activity with Permission and Scanning Logic
-class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryTextListener {
+class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryTextListener, MusicEditListener {
+
     // Coroutine setup
     private var job: Job = Job()
     override val coroutineContext: CoroutineContext
@@ -615,6 +721,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     public lateinit var musicAdapter: MusicAdapter
     private lateinit var sortButton: ImageButton // Reference to the new sort criterion button
     private lateinit var sortDirectionButton: ImageButton // Reference to the new sort direction button
+
+    // NEW: Store the item currently being edited, used for click-outside detection
+    private var currentlyEditingItem: View? = null
 
     // Determine the correct permission based on Android version
     private val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -655,6 +764,25 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         viewModel.loadAudioFiles(applicationContext) // Call ViewModel to scan files
     }
 
+    // NEW: Activity Result Launcher for MediaStore Write Request (API 30+)
+    private val requestWritePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            // Permission granted, now save the data (which is stored in temp properties)
+            executePendingMetadataUpdate()
+        } else {
+            Toast.makeText(this, "Permission to modify file denied.", Toast.LENGTH_SHORT).show()
+            // Exit editing mode gracefully
+            exitEditingMode()
+        }
+    }
+
+    // NEW: Temporary storage for the data to be saved after permission is granted
+    private var pendingUpdateFile: AudioFile? = null
+    private var pendingUpdateTitle: String? = null
+    private var pendingUpdateArtist: String? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -679,6 +807,39 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         setupSwipeRefresh()
         setupObservers()
         checkPermissions()
+    }
+
+    // NEW: Override dispatchTouchEvent to handle click-outside-item event
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        // If we are in editing mode, check if the touch event is outside the editing item
+        if (currentlyEditingItem != null && ev?.action == MotionEvent.ACTION_DOWN) {
+            val view = currentlyEditingItem!!
+            val outRect = android.graphics.Rect()
+            view.getGlobalVisibleRect(outRect)
+
+            // If the touch is outside the currently edited item's boundaries
+            if (!outRect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
+                Log.d("MainActivity", "Click detected outside editing item. Saving/Exiting.")
+                // Get the current editing position from the adapter
+                val position = musicAdapter.getEditingPosition()
+                if (position != RecyclerView.NO_POSITION) {
+                    // Find the ViewHolder and trigger the save/exit logic
+                    val viewHolder = binding.recyclerViewMusic.findViewHolderForAdapterPosition(position) as? MusicAdapter.MusicViewHolder
+                    val file = musicAdapter.getCurrentList().getOrNull(position)
+                    val titleEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_title)
+                    val artistEditText = viewHolder?.itemView?.findViewById<EditText>(R.id.edit_text_artist)
+
+                    if (file != null && titleEditText != null && artistEditText != null) {
+                        // Pass the current EditText values to the save logic
+                        saveEditAndExit(file, titleEditText.text.toString().trim(), artistEditText.text.toString().trim())
+                    } else {
+                        // If we can't get the data, just exit editing mode
+                        exitEditingMode()
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     // NEW: Function to setup the sort direction toggle button
@@ -744,6 +905,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         super.onResume()
         // Ensure the keyboard is hidden and focus is cleared when returning to the activity
         hideKeyboardAndClearFocus()
+        // Ensure editing mode is reset if activity was paused during edit
+        if (musicAdapter.getEditingPosition() != RecyclerView.NO_POSITION) {
+            exitEditingMode()
+        }
     }
 
     private fun setupObservers() {
@@ -784,7 +949,8 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     }
 
     private fun setupRecyclerView() {
-        musicAdapter = MusicAdapter(this, emptyList())
+        // Pass 'this' as the MusicEditListener
+        musicAdapter = MusicAdapter(this, emptyList(), this)
         binding.recyclerViewMusic.adapter = musicAdapter
     }
 
@@ -798,6 +964,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         binding.swipeRefreshLayout.setOnRefreshListener {
             // 1. Clear any existing list display (optional, but good for UX)
             musicAdapter.updateList(emptyList())
+            exitEditingMode() // Always exit edit mode on refresh
 
             // 2. Trigger the scan to reload all data
             viewModel.loadAudioFiles(applicationContext)
@@ -830,6 +997,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     // This function is now responsible for setting the current play state in the repository
     // and starting the service without passing large data via Intent.
     fun startMusicPlayback(file: AudioFile, filteredIndex: Int) {
+        // Exit editing mode if currently active
+        if (musicAdapter.getEditingPosition() != RecyclerView.NO_POSITION) {
+            exitEditingMode()
+            return // Prevent playback if exiting edit mode
+        }
+
         // Get the currently displayed (sorted & filtered) list from the adapter
         val currentDisplayedList = musicAdapter.getCurrentList()
 
@@ -869,6 +1042,124 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         startActivity(activityIntent)
     }
 
+    // --- MusicEditListener Implementation ---
+
+    override fun startEditing(position: Int) {
+        val viewHolder = binding.recyclerViewMusic.findViewHolderForAdapterPosition(position)
+        if (viewHolder != null) {
+
+            // FIX: Disable the search view and clear its focus when entering edit mode
+            binding.searchViewMusic.isEnabled = false
+            binding.searchViewMusic.clearFocus()
+
+            currentlyEditingItem = viewHolder.itemView // Store the view for click-outside detection
+            musicAdapter.setEditingPosition(position)
+
+            // Give the EditText focus again after the notifyItemChanged rebinds the view
+            val editText = viewHolder.itemView.findViewById<EditText>(R.id.edit_text_title)
+            editText?.requestFocus()
+
+            // Show toast message for guidance
+            Toast.makeText(this, "Editing: Click save or outside the item to finish.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun saveEditAndExit(audioFile: AudioFile, newTitle: String, newArtist: String) {
+        val oldTitle = audioFile.title
+        val oldArtist = audioFile.artist
+
+        // 1. Check if anything was actually modified
+        if (newTitle == oldTitle && newArtist == oldArtist) {
+            Toast.makeText(this, "No changes detected. Exiting editor.", Toast.LENGTH_SHORT).show()
+            exitEditingMode()
+            return
+        }
+
+        // 2. Store the pending update
+        pendingUpdateFile = audioFile
+        pendingUpdateTitle = newTitle
+        pendingUpdateArtist = newArtist
+
+        // 3. Request write permission for the specific file(s)
+        requestMetadataWritePermission(listOf(audioFile.uri))
+    }
+
+    // --- Metadata Write Logic ---
+
+    private fun requestMetadataWritePermission(uris: List<Uri>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Use MediaStore.createWriteRequest for API 30+
+            val pendingIntent = MediaStore.createWriteRequest(contentResolver, uris)
+            val intentSenderRequest = IntentSenderRequest.Builder(pendingIntent.intentSender).build()
+            requestWritePermissionLauncher.launch(intentSenderRequest)
+        } else {
+            // For older APIs (29 and below), WRITE_EXTERNAL_STORAGE is required.
+            // Since we rely on the modern MediaStore URI, we assume the user has the proper
+            // permission (READ_EXTERNAL_STORAGE) which often implies write access to owned files
+            // or we fall back to a less secure general permission request (which the app doesn't have)
+            // or simply try to execute the update. We will execute directly, assuming the URI
+            // is valid and permission has been handled by the system for the app's files.
+            executePendingMetadataUpdate()
+        }
+    }
+
+    private fun executePendingMetadataUpdate() {
+        val file = pendingUpdateFile ?: return
+        val newTitle = pendingUpdateTitle ?: return
+        val newArtist = pendingUpdateArtist ?: return
+
+        // Clear pending data immediately
+        pendingUpdateFile = null
+        pendingUpdateTitle = null
+        pendingUpdateArtist = null
+
+        launch(Dispatchers.IO) {
+            try {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.Audio.Media.TITLE, newTitle)
+                    put(MediaStore.Audio.Media.ARTIST, newArtist)
+                }
+
+                // Use the file's content URI to perform the update
+                val rowsUpdated = contentResolver.update(file.uri, contentValues, null, null)
+
+                withContext(Dispatchers.Main) {
+                    if (rowsUpdated > 0) {
+                        Toast.makeText(this@MainActivity, "Metadata updated successfully!", Toast.LENGTH_SHORT).show()
+
+                        // Update the repository with the new, modified AudioFile object
+                        val updatedFile = file.copy(title = newTitle, artist = newArtist)
+                        PlaylistRepository.updateFile(updatedFile)
+                        // ViewModel will observe the change and trigger list re-render/re-sort
+                    } else {
+                        Toast.makeText(this@MainActivity, "Update failed: File not found or no changes made.", Toast.LENGTH_LONG).show()
+                    }
+                    exitEditingMode()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error updating metadata for ${file.uri}", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Error: Could not save metadata. Check permissions.", Toast.LENGTH_LONG).show()
+                    exitEditingMode()
+                }
+            }
+        }
+    }
+
+    private fun exitEditingMode() {
+        // 1. Hide the keyboard
+        hideKeyboardAndClearFocus()
+        // 2. Clear the editing state in the adapter
+        musicAdapter.setEditingPosition(RecyclerView.NO_POSITION)
+        // 3. Clear the global editing view reference
+        currentlyEditingItem = null
+
+        // FIX: Re-enable the search view when exiting edit mode
+        binding.searchViewMusic.isEnabled = true
+    }
+
+    // --- End MusicEditListener Implementation ---
+
     override fun onQueryTextSubmit(query: String?): Boolean {
         // NEW: Hide the soft keyboard and clear focus on submit
         hideKeyboardAndClearFocus()
@@ -879,8 +1170,11 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
      * Called when the query text is changed by the user. This is where the filtering happens.
      */
     override fun onQueryTextChange(newText: String?): Boolean {
-        // Filter the list using the ViewModel
-        viewModel.filterList(newText.orEmpty())
+        // FIX: Only process text changes if the search view is enabled
+        if (binding.searchViewMusic.isEnabled) {
+            // Filter the list using the ViewModel
+            viewModel.filterList(newText.orEmpty())
+        }
         return true
     }
 
@@ -897,7 +1191,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
 
         // 2. Explicitly hide the keyboard using InputMethodManager
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(binding.searchViewMusic.windowToken, 0)
+        // Use the currently focused view's window token, or the root view's if none.
+        val windowToken = currentFocus?.windowToken ?: binding.root.windowToken
+        imm.hideSoftInputFromWindow(windowToken, 0)
     }
 
     override fun onDestroy() {

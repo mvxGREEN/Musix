@@ -63,7 +63,7 @@
         app:hide_on_touch="false"
         app:repeat_toggle_modes="all"
         app:show_shuffle_button="true"
-        app:default_artwork="@drawable/music_note_24px"
+        app:default_artwork="@drawable/musi_note_432px"
         app:surface_type="none"
         app:use_controller="true"
         app:show_timeout="0" /> <!-- Set to 0 to keep controls visible indefinitely -->

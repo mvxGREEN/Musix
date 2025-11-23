@@ -455,8 +455,8 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             com.bumptech.glide.Glide.with(itemView.context)
                 .load(albumArtUri)
                 .transform(com.bumptech.glide.load.resource.bitmap.CircleCrop())
-                .placeholder(R.drawable.music_note_24px)
-                .error(R.drawable.music_note_24px)
+                .placeholder(R.drawable.default_album_art_96px)
+                .error(R.drawable.default_album_art_96px)
                 .addListener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
                     override fun onLoadFailed(
                         e: com.bumptech.glide.load.engine.GlideException?,
@@ -464,8 +464,8 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                         target: com.bumptech.glide.request.target.Target<android.graphics.drawable.Drawable>,
                         isFirstResource: Boolean
                     ): Boolean {
-                        // On failure (or null model), apply the tint to the placeholder
-                        binding.imageAlbumArt.imageTintList = ContextCompat.getColorStateList(itemView.context, R.color.colorPrimary)
+                        // On failure (or null model), apply effects to the placeholder
+                        //binding.imageAlbumArt.imageTintList = ContextCompat.getColorStateList(itemView.context, R.color.colorPrimary)
                         return false
                     }
 

@@ -50,7 +50,8 @@
             app:layout_constraintTop_toBottomOf="@id/text_title"
             app:layout_constraintStart_toStartOf="@id/text_title"
             app:layout_constraintEnd_toEndOf="parent"
-            tools:text="Artist Name" />
+            tools:text="Artist Name"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

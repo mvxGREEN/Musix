@@ -455,8 +455,8 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             com.bumptech.glide.Glide.with(itemView.context)
                 .load(albumArtUri)
                 .transform(com.bumptech.glide.load.resource.bitmap.CircleCrop())
-                .placeholder(R.drawable.default_album_art_96px)
-                .error(R.drawable.default_album_art_96px)
+                .placeholder(R.drawable.default_album_art_192px)
+                .error(R.drawable.default_album_art_192px)
                 .addListener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
                     override fun onLoadFailed(
                         e: com.bumptech.glide.load.engine.GlideException?,

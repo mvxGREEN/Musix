@@ -628,8 +628,8 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                 .load(imageSourceUri) // Use the conditionally selected URI
                 // REMOVED: The problematic .set(VideoDecoder.SKIP_MEDIA_STORE_URI, true) call
                 .transform(com.bumptech.glide.load.resource.bitmap.CircleCrop())
-                .placeholder(R.drawable.default_album_art_192px)
-                .error(R.drawable.default_album_art_192px)
+                .placeholder(R.drawable.default_album_art_144px)
+                .error(R.drawable.default_album_art_144px)
                 .addListener(object : com.bumptech.glide.request.RequestListener<android.graphics.drawable.Drawable> {
                     override fun onLoadFailed(
                         e: com.bumptech.glide.load.engine.GlideException?,

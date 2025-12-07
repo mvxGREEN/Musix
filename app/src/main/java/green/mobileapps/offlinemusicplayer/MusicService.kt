@@ -18,6 +18,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSession.ConnectionResult
 import androidx.media3.session.MediaSessionService
@@ -103,12 +104,12 @@ class MusicService : MediaSessionService() {
                 }
 
                 // Update the notification whenever the state changes (e.g., Play to Pause)
-                updateMediaNotification()
+                //updateMediaNotification()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 // Also update when play/pause changes, even if state is READY
-                updateMediaNotification()
+                //updateMediaNotification()
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -129,23 +130,19 @@ class MusicService : MediaSessionService() {
             .setSessionActivity(getMediaSessionActivity(this)!!)
             .build()
 
-        manager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        //manager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         // Call startForeground with the initial notification
-        startForeground(NOTIFICATION_ID, createMediaNotification())
+        //startForeground(NOTIFICATION_ID, createMediaNotification())
     }
 
     /**
      * Updates the existing notification to reflect the current player state (e.g., changes play/pause button).
      */
     private fun updateMediaNotification() {
-        // Ensure this method is called after player state changes
         val notification = createMediaNotification()
         manager?.notify(NOTIFICATION_ID, notification)
     }
 
-    // --- MediaLibraryService Overrides ---
-
-    // 3. Provide the Session to the system
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSesh
     }
@@ -250,7 +247,7 @@ class MusicService : MediaSessionService() {
         lastLoadedFile = PlaylistRepository.getCurrentTrack()
 
         // Force a notification update immediately after starting playback
-        updateMediaNotification()
+        //updateMediaNotification()
     }
 
     fun getAllMediaItems(player: ExoPlayer?): List<String> {
@@ -353,7 +350,7 @@ class MusicService : MediaSessionService() {
         )
         // --------------------------------------------------
 
-        builder.setSmallIcon(R.drawable.music_note_24px)
+        builder.setSmallIcon(R.drawable.musi_v2)
         builder.setAutoCancel(false) // Notification should stay visible
         builder.setOngoing(true)
         builder.setContentTitle(title)
@@ -377,9 +374,6 @@ class MusicService : MediaSessionService() {
         )
 
         builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
-
-        // This is the line that makes the notification click open the activity
-        //builder.setContentIntent(contentIntent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder.setChannelId(NOTIFICATION_CHANNEL_ID)

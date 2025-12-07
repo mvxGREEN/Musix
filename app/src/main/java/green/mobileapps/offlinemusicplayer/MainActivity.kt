@@ -560,7 +560,18 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
     inner class MusicViewHolder(private val binding: ItemMusicFileBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(file: AudioFile) {
+        fun bind(file: AudioFile, index: Int) {
+            // alternate background colors
+            if (index % 2 == 0) {
+                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context,
+                    R.color.light_gray));
+            } else {
+                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context,
+                    R.color.white));
+                binding.textTitle.alpha = 0.95f;
+                binding.textArtist.alpha = 0.95f;
+            }
+
             val isEditing = adapterPosition == editingPosition
 
             // --- Set Text Content (Display or Edit) ---
@@ -659,7 +670,6 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                 .into(binding.imageAlbumArt)
             // --- FINAL FIX END ---
 
-
             // 3. Click Listeners
             binding.root.setOnClickListener {
                 if (!isEditing) {
@@ -700,7 +710,7 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
     }
 
     override fun onBindViewHolder(holder: MusicViewHolder, position: Int) {
-        holder.bind(musicList[position])
+        holder.bind(musicList[position], position)
     }
 
     override fun getItemCount(): Int = musicList.size

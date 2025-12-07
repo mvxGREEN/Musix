@@ -16,7 +16,7 @@
 
     <!-- Starting activity theme -->
     <style name="AppTheme.Launcher" parent="AppTheme.NoActionBar">
-        <item name="android:windowBackground">@drawable/mp_splash</item>
+        <item name="android:windowBackground">@drawable/musi_v2</item>
     </style>
 
 

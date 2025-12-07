@@ -65,29 +65,6 @@ class MusicActivity : AppCompatActivity() {
     }
 
     /**
-     * Updates the UI with metadata from the received AudioFile in the Repository.
-
-    private fun displayInitialTrackMetadata() {
-        // Retrieve the current playing track from the shared repository
-        val file = PlaylistRepository.getCurrentTrack()
-        if (file != null) {
-            val trackPrefix = if (file.track != null && file.track > 0) "${file.track}. " else ""
-            // Display Title
-            textTitle.text = "$trackPrefix${file.title}"
-
-            // Display Artist and Album, separated by a distinct dot
-            val albumInfo = if (file.album != null) " • ${file.album}" else ""
-            textArtist.text = "${file.artist}$albumInfo"
-
-            // TODO: Add logic here to load actual album art into imageAlbumArt if available in AudioFile
-        } else {
-            textTitle.text = "Loading..."
-            textArtist.text = "Connect to Media Service"
-        }
-    }
-     */
-
-    /**
      * Updates the UI (Title/Artist) based on the current MediaItem's metadata.
      */
     private fun updateMetadataUI(mediaItem: androidx.media3.common.MediaItem?) {
@@ -109,6 +86,9 @@ class MusicActivity : AppCompatActivity() {
             // Fallback for a disconnected or empty state
             textTitle.text = "No Track Loaded"
             textArtist.text = "Waiting for Media Service"
+
+            // go back to the MainActivity
+            onBackPressed()
         }
     }
 

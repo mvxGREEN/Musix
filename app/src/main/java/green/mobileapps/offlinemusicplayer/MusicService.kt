@@ -87,6 +87,8 @@ class MusicService : MediaSessionService() {
             .build()
         player?.repeatMode = Player.REPEAT_MODE_ALL
 
+        player?.shuffleModeEnabled = true
+
         // Add a listener for debugging and state management
         player?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {

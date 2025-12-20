@@ -71,6 +71,8 @@ dependencies {
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.common.ktx)
     implementation(libs.androidx.media3.session)
+
+    implementation(libs.library)
     implementation(libs.media3.ui)
 
     // media1 support

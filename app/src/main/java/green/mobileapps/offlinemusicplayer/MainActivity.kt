@@ -586,8 +586,6 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             // 1. CANCEL the previous job immediately so it doesn't "shuffle" art
             job?.cancel()
 
-            //Glide.with(itemView.context).clear(binding.imageAlbumArt)
-
             // alternate background colors
             if (index % 2 == 0) {
                 binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context,
@@ -641,6 +639,7 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
 
             val cacheKey = "${file.id}_${file.dateModified}"
             val isProblematic = file.album?.lowercase() == "music"
+                    || file.album?.lowercase() == "documents"
                     || file.albumId == 553547078986512838L
                     || file.artist.lowercase() == "<unknown>"
 

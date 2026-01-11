@@ -1056,6 +1056,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         job.cancel()
     }
 
+    // menu click handlers
     fun onRateClick(item: MenuItem) {}
     fun onHelpClick(item: MenuItem) {}
     fun showBigFrag(item: MenuItem) {}

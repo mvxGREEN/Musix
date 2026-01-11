@@ -165,22 +165,37 @@ class MusicService : MediaSessionService() {
                 return START_STICKY
             }
             ACTION_ADD_TO_QUEUE -> {
-                val file = intent.getParcelableExtra<AudioFile>("EXTRA_QUEUE_FILE")
+                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra("EXTRA_QUEUE_FILE", AudioFile::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra("EXTRA_QUEUE_FILE")
+                }
+
                 if (file != null) {
                     Log.d(TAG, "Adding to ExoPlayer queue: ${file.title}")
 
-                    // Logic: Insert this song immediately AFTER the current playing song
+                    // 1. Get current positions
                     val currentIndex = player?.currentMediaItemIndex ?: 0
-                    val insertIndex = currentIndex + 1
+                    val currentPlaylistSize = player?.mediaItemCount ?: 0
+
+                    // 2. Calculate the correct insertion index (FIFO)
+                    // We check the Repository size because the new item is already added there.
+                    // Example:
+                    // - Queue has [A]. Size is 1. We insert A at (Index + 1).
+                    // - Queue has [A, B]. Size is 2. We insert B at (Index + 2).
+                    val queueSize = PlaylistRepository.queue.value?.size ?: 1
+
+                    // The target index is simply: Current Track + Number of items in Queue
+                    var insertIndex = currentIndex + queueSize
+
+                    // SAFETY CHECK: Ensure we don't try to insert beyond the playlist bounds
+                    // (This handles race conditions where the player might be empty or syncing)
+                    if (insertIndex > currentPlaylistSize) {
+                        insertIndex = currentPlaylistSize
+                    }
 
                     player?.addMediaItem(insertIndex, file.toMediaItem())
-
-                    // Note: We do NOT seek or play. We just queue it up.
-                    // When the current song finishes, ExoPlayer will naturally flow into this one.
-
-                    // Also: We do not need to pop from Repository manually here,
-                    // but you need to sync them.
-                    // Actually, if we do this, we don't need 'onMediaItemTransition' logic anymore!
                 }
                 return START_STICKY
             }

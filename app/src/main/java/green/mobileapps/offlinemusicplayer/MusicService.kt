@@ -93,12 +93,19 @@ class MusicService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 super.onMediaItemTransition(mediaItem, reason)
 
-                // Just keep the UI in sync
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                    // We successfully moved to the next song.
-                    // If we have a queue in the Repo, remove the top item because it's now playing.
-                    if (PlaylistRepository.hasQueue()) {
-                        PlaylistRepository.popNextInQueue() // Updates the LiveData/UI
+                // 1. Ensure a track is actually loaded
+                if (mediaItem != null && PlaylistRepository.hasQueue()) {
+
+                    // 2. Peek at the top item in the UI queue (without removing it yet)
+                    val nextInQueue = PlaylistRepository.queue.value?.firstOrNull()
+
+                    // 3. Compare IDs: Is the song currently starting the one we have in the queue?
+                    // We check mediaId (which matches the AudioFile.id string)
+                    if (nextInQueue != null && mediaItem.mediaId == nextInQueue.id.toString()) {
+                        Log.d(TAG, "Now playing queued track: ${nextInQueue.title}. Removing from UI queue.")
+
+                        // 4. Remove it from the UI Queue since it is now "Now Playing"
+                        PlaylistRepository.popNextInQueue()
                     }
                 }
             }

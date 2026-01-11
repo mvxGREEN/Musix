@@ -1006,9 +1006,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
             return
         }
 
-        val actualIndex = filteredIndex
-
-        PlaylistRepository.currentTrackIndex = actualIndex
+        PlaylistRepository.currentTrackIndex = filteredIndex
         PlaylistRepository.setFiles(currentDisplayedList)
 
         hideKeyboardAndClearFocus()

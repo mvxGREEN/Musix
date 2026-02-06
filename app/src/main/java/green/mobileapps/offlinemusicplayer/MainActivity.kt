@@ -482,20 +482,21 @@ class MusicViewModel(application: android.app.Application) : AndroidViewModel(ap
 class MusicAdapter(private val activity: MainActivity, private var musicList: List<AudioFile>, private val editListener: MusicEditListener) :
     RecyclerView.Adapter<MusicAdapter.MusicViewHolder>() {
 
-    private val artworkCache = android.util.LruCache<Long, ByteArray>(10 * 1024 * 1024)
+    // CHANGED: Cache Bitmaps (small) instead of ByteArrays (large)
+    // 4MB cache is plenty for hundreds of 144px thumbnails
+    private val artworkCache = object : android.util.LruCache<Long, android.graphics.Bitmap>(4 * 1024 * 1024) {
+        override fun sizeOf(key: Long, value: android.graphics.Bitmap): Int {
+            return value.byteCount
+        }
+    }
 
-    //private val imageCache = mutableMapOf<Long, ByteArray?>()
     private var editingPosition: Int = RecyclerView.NO_POSITION
 
     fun setEditingPosition(newPosition: Int) {
         val oldPosition = editingPosition
         editingPosition = newPosition
-        if (oldPosition != RecyclerView.NO_POSITION) {
-            notifyItemChanged(oldPosition)
-        }
-        if (newPosition != RecyclerView.NO_POSITION) {
-            notifyItemChanged(newPosition)
-        }
+        if (oldPosition != RecyclerView.NO_POSITION) notifyItemChanged(oldPosition)
+        if (newPosition != RecyclerView.NO_POSITION) notifyItemChanged(newPosition)
     }
 
     fun getEditingPosition(): Int = editingPosition
@@ -506,54 +507,53 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
         var job: Job? = null
 
         fun bind(file: AudioFile, index: Int) {
+            // Cancel previous work for this view holder immediately
             job?.cancel()
 
-            val cacheKey = "${file.id}_${file.dateModified}"
-            val cachedBytes = artworkCache.get(file.id)
+            // 1. Check Memory Cache
+            val cachedBitmap = artworkCache.get(file.id)
 
-            // 2. Clear current image to avoid showing wrong art while loading
-            // (Optional: You can leave the placeholder if you prefer)
-            Glide.with(itemView.context).clear(binding.imageAlbumArt)
+            // Clear previous image to avoid wrong art showing
+            binding.imageAlbumArt.setImageDrawable(null)
 
-            if (cachedBytes != null) {
-                // HIT: Load directly from memory
-                loadArtIntoView(cachedBytes, cacheKey)
+            if (cachedBitmap != null) {
+                // HIT: Load directly
+                loadBitmapIntoView(cachedBitmap)
             } else {
-                // MISS: Show default and load in background
+                // MISS: Set placeholder and load in background
                 binding.imageAlbumArt.setImageResource(R.drawable.default_album_art_144px)
 
                 job = (itemView.context as? MainActivity)?.lifecycleScope?.launch(Dispatchers.IO) {
-                    // Extract art from file (Heavy Operation)
-                    val bytes = getEmbeddedPicture(itemView.context, file.uri)
+                    // CHANGED: Helper now returns a small Bitmap, not raw bytes
+                    val bitmap = getEmbeddedPictureBitmap(itemView.context, file.uri)
 
-                    if (bytes != null) {
-                        artworkCache.put(file.id, bytes)
+                    if (bitmap != null) {
+                        artworkCache.put(file.id, bitmap)
                     }
 
-                    // Switch to Main thread to update UI
                     withContext(Dispatchers.Main) {
-                        // Check if this ViewHolder is still bound to the same file
                         if (isActive) {
-                            loadArtIntoView(bytes, cacheKey)
+                            if (bitmap != null) {
+                                loadBitmapIntoView(bitmap)
+                            } else {
+                                // Explicitly ensure default is set on failure
+                                binding.imageAlbumArt.setImageResource(R.drawable.default_album_art_144px)
+                            }
                         }
                     }
                 }
             }
 
+            // --- Existing View Setup (unchanged) ---
             if (index % 2 == 0) {
-                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context,
-                    R.color.light_gray));
+                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context, R.color.light_gray))
             } else {
-                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context,
-                    R.color.white));
-                binding.textTitle.alpha = 0.95f;
-                binding.textArtist.alpha = 0.95f;
+                binding.itemCard.setCardBackgroundColor(ContextCompat.getColor(binding.itemCard.context, R.color.white))
+                binding.textTitle.alpha = 0.95f
+                binding.textArtist.alpha = 0.95f
             }
 
             val isEditing = adapterPosition == editingPosition
-            val fullTitleText = file.title
-            val albumInfo = if (file.album != null) " • ${file.album}" else ""
-            val fullArtistText = "${file.artist}$albumInfo"
 
             if (isEditing) {
                 binding.textTitle.visibility = View.GONE
@@ -574,14 +574,12 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
                 binding.editTextTitle.visibility = View.GONE
                 binding.editTextArtist.visibility = View.GONE
                 binding.buttonSaveEdit.visibility = View.GONE
-                binding.textTitle.text = fullTitleText
-                binding.textArtist.text = fullArtistText
+                binding.textTitle.text = file.title
+                binding.textArtist.text = "${file.artist}${if (file.album != null) " • ${file.album}" else ""}"
             }
 
             binding.root.setOnClickListener {
-                if (!isEditing) {
-                    activity.startMusicPlayback(file, adapterPosition)
-                }
+                if (!isEditing) activity.startMusicPlayback(file, adapterPosition)
             }
 
             binding.buttonSaveEdit.setOnClickListener {
@@ -591,10 +589,9 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
             }
         }
 
-        private fun loadArtIntoView(bytes: ByteArray?, signatureKey: String) {
+        private fun loadBitmapIntoView(bitmap: android.graphics.Bitmap) {
             Glide.with(itemView.context)
-                .load(bytes ?: R.drawable.default_album_art_144px) // Load bytes or fallback
-                .signature(com.bumptech.glide.signature.ObjectKey(signatureKey))
+                .load(bitmap)
                 .transform(CircleCrop())
                 .placeholder(R.drawable.default_album_art_144px)
                 .dontAnimate()
@@ -602,24 +599,55 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
         }
     }
 
-    private fun getEmbeddedPicture(context: Context, uri: Uri): ByteArray? {
+    // --- UPDATED HELPER FUNCTION ---
+    // Returns a downsampled Bitmap instead of the full ByteArray
+    private fun getEmbeddedPictureBitmap(context: Context, uri: Uri): android.graphics.Bitmap? {
         val retriever = android.media.MediaMetadataRetriever()
         return try {
             retriever.setDataSource(context, uri)
-            retriever.embeddedPicture
+            val data = retriever.embeddedPicture ?: return null
+
+            // 1. Decode bounds only (to check size)
+            val options = android.graphics.BitmapFactory.Options()
+            options.inJustDecodeBounds = true
+            android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
+            // 2. Calculate sample size (target 144px for list view)
+            options.inSampleSize = calculateInSampleSize(options, 144, 144)
+            options.inJustDecodeBounds = false
+
+            // 3. Decode actual bitmap
+            android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
         } catch (e: Exception) {
+            null // Handle IO errors
+        } catch (e: OutOfMemoryError) {
+            // CRITICAL: Catch OOM specifically to prevent crash
+            System.gc() // Suggest cleanup
             null
         } finally {
-            retriever.release()
+            try { retriever.release() } catch (e: Exception) {}
         }
     }
 
+    // Helper to calculate downsampling factor
+    private fun calculateInSampleSize(options: android.graphics.BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val (height: Int, width: Int) = options.run { outHeight to outWidth }
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight: Int = height / 2
+            val halfWidth: Int = width / 2
+
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MusicViewHolder {
-        val binding = ItemMusicFileBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
+        val binding = ItemMusicFileBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return MusicViewHolder(binding)
     }
 
@@ -630,27 +658,16 @@ class MusicAdapter(private val activity: MainActivity, private var musicList: Li
     override fun getItemCount(): Int = musicList.size
 
     fun updateList(newList: List<AudioFile>) {
-        // REMOVED: The manual cache invalidation logic is no longer needed.
-        // Glide automatically handles cache invalidation based on the
-        // signature(ObjectKey(cacheKey)) we added in the bind() method.
-
         val diffCallback = object : androidx.recyclerview.widget.DiffUtil.Callback() {
             override fun getOldListSize(): Int = musicList.size
             override fun getNewListSize(): Int = newList.size
-
-            override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean {
-                return musicList[oldPos].id == newList[newPos].id
-            }
-
+            override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean = musicList[oldPos].id == newList[newPos].id
             override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
                 val oldItem = musicList[oldPos]
                 val newItem = newList[newPos]
-                return oldItem.title == newItem.title &&
-                        oldItem.artist == newItem.artist &&
-                        oldItem.dateModified == newItem.dateModified
+                return oldItem.title == newItem.title && oldItem.artist == newItem.artist
             }
         }
-
         val diffResult = androidx.recyclerview.widget.DiffUtil.calculateDiff(diffCallback)
         musicList = newList
         diffResult.dispatchUpdatesTo(this)
@@ -755,10 +772,6 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_rate -> {
-                onRateClick(item)
-                true
-            }
             R.id.action_about -> {
                 onAboutClick(item)
                 true

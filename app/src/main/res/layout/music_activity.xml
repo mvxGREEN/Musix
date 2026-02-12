@@ -60,14 +60,14 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/text_track_artist"
         app:auto_show="true"
-        app:hide_on_touch="false"
+        app:hide_on_touch="true"
         app:repeat_toggle_modes="all"
         app:show_shuffle_button="true"
-        app:default_artwork="@drawable/musi_note_432px"
         app:surface_type="none"
         app:use_controller="true"
+        app:show_timeout="0"
         app:play_icon="@drawable/ic_play_arrow_black"
         app:pause_icon="@drawable/ic_pause_black"
-        app:show_timeout="0" /> <!-- Set to 0 to keep controls visible indefinitely -->
+        />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

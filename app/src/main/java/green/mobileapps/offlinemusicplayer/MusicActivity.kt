@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns // NEW
 import android.util.Log
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.OptIn
@@ -41,6 +42,21 @@ class MusicActivity : AppCompatActivity() {
             super.onMediaItemTransition(mediaItem, reason)
             updateMetadataUI(mediaItem)
         }
+
+        // NEW: specific override for repeat mode changes
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            super.onRepeatModeChanged(repeatMode)
+            updateRepeatButton(repeatMode)
+        }
+
+        // NEW: Handle initial state when player attaches
+        override fun onEvents(player: Player, events: Player.Events) {
+            super.onEvents(player, events)
+            if (events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+                events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+                updateRepeatButton(player.repeatMode)
+            }
+        }
     }
 
     private lateinit var textTitle: TextView
@@ -63,6 +79,20 @@ class MusicActivity : AppCompatActivity() {
         playerView.setShowNextButton(true)
         playerView.setShowPreviousButton(true)
         playerView.setShowShuffleButton(true)
+
+        val btnRepeat = playerView.findViewById<ImageButton>(R.id.btn_custom_repeat)
+        btnRepeat.setOnClickListener {
+            mediaController?.let { player ->
+                val newMode = when (player.repeatMode) {
+                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                    Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
+                    else -> Player.REPEAT_MODE_OFF
+                }
+                player.repeatMode = newMode
+                // UI will be updated automatically via the playerListener below
+            }
+        }
 
         checkForExternalIntent(intent)
     }
@@ -209,6 +239,25 @@ class MusicActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateRepeatButton(repeatMode: Int) {
+        val btnRepeat = playerView.findViewById<ImageButton>(R.id.btn_custom_repeat) ?: return
+
+        when (repeatMode) {
+            Player.REPEAT_MODE_OFF -> {
+                btnRepeat.setImageResource(R.drawable.repeat_24px)
+                btnRepeat.alpha = 0.3f // Dim the icon to show it's inactive
+            }
+            Player.REPEAT_MODE_ALL -> {
+                btnRepeat.setImageResource(R.drawable.repeat_24px)
+                btnRepeat.alpha = 1.0f // Fully opaque (White)
+            }
+            Player.REPEAT_MODE_ONE -> {
+                btnRepeat.setImageResource(R.drawable.ic_repeat_one_white) // Your custom icon
+                btnRepeat.alpha = 1.0f
+            }
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         Log.d(TAG, "onStart: Creating MediaController")
@@ -226,6 +275,8 @@ class MusicActivity : AppCompatActivity() {
                 playerView.player = mediaController
                 mediaController?.addListener(playerListener)
                 Log.d(TAG, "MediaController connected.")
+
+                updateRepeatButton(mediaController?.repeatMode ?: Player.REPEAT_MODE_OFF)
 
                 if (pendingExternalUri != null) {
                     playExternalUri(pendingExternalUri!!)

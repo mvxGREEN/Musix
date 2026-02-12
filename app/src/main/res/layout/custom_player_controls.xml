@@ -119,7 +119,7 @@
             app:tint="@android:color/white" />
 
         <ImageButton
-            android:id="@id/exo_repeat_toggle"
+            android:id="@+id/btn_custom_repeat"
             style="@style/ExoMediaButton"
             android:layout_width="0dp"
             android:layout_height="48dp"

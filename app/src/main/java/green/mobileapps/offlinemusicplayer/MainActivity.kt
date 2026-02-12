@@ -690,7 +690,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
     private lateinit var sortDirectionButton: ImageButton
     private lateinit var backButton: ImageButton
 
-    private val PREFS_NAME = "AppPrefs"
+    private val PREFS_NAME = "MusiPrefs"
     private val KEY_APP_OPEN_COUNT = "AppOpenCount"
 
     private val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

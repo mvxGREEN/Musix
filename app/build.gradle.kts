@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "green.mobileapps.offlinemusicplayer"
+    namespace = "green.mobileapps.musiplayeroffline"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "green.mobileapps.offlinemusicplayer"
+        applicationId = "green.mobileapps.musiplayeroffline"
         minSdk = 24
         targetSdk = 36
         versionCode = 14

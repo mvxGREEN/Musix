@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import android.Manifest
 import android.content.ActivityNotFoundException
@@ -26,16 +26,12 @@ import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
-import green.mobileapps.offlinemusicplayer.databinding.ItemMusicFileBinding
-import green.mobileapps.offlinemusicplayer.databinding.MainActivityBinding
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.AndroidViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +47,8 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.google.android.play.core.review.ReviewManagerFactory
+import green.mobileapps.musiplayeroffline.databinding.ItemMusicFileBinding
+import green.mobileapps.musiplayeroffline.databinding.MainActivityBinding
 import kotlinx.coroutines.isActive
 import me.zhanghai.android.fastscroll.FastScrollerBuilder
 import java.util.Collections

@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("green.mobileapps.offlinemusicplayer", appContext.packageName)
+        assertEquals("green.mobileapps.musiplayeroffline", appContext.packageName)
     }
 }

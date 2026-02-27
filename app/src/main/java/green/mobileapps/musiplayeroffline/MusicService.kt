@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -27,7 +26,6 @@ import androidx.media3.session.MediaSession.ConnectionResult
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionCommands
-import com.google.common.util.concurrent.ListenableFuture
 
 class MusicService : MediaSessionService() {
     private var player: ExoPlayer? = null

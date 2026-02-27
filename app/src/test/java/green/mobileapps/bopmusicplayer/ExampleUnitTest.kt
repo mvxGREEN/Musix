@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import org.junit.Test
 

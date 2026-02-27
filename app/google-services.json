@@ -160,9 +160,47 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:525658331083:android:52d8ca9d10bf95196bc84e",
+        "android_client_info": {
+          "package_name": "green.mobileapps.musiplayeroffline"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBb_M4XN0rs0MdlZOTztwfbV6pmSA-kcnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:525658331083:android:6d43ebdd7911cec46bc84e",
         "android_client_info": {
           "package_name": "green.mobileapps.offlinemusicplayer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBb_M4XN0rs0MdlZOTztwfbV6pmSA-kcnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525658331083:android:de7268cd6de623ec6bc84e",
+        "android_client_info": {
+          "package_name": "green.mobileapps.offlinevideoplayer"
         }
       },
       "oauth_client": [],

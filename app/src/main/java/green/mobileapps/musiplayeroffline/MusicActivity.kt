@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import android.content.ComponentName
 import android.content.Intent
@@ -23,6 +23,7 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import green.mobileapps.musiplayeroffline.R
 import kotlinx.coroutines.Dispatchers // NEW
 import kotlinx.coroutines.launch // NEW
 import kotlinx.coroutines.withContext // NEW

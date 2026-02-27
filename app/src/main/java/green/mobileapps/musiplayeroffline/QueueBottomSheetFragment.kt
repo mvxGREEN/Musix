@@ -1,4 +1,4 @@
-package green.mobileapps.offlinemusicplayer
+package green.mobileapps.musiplayeroffline
 
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -10,8 +10,8 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import green.mobileapps.offlinemusicplayer.databinding.FragmentQueueBinding
-import green.mobileapps.offlinemusicplayer.databinding.ItemQueueMusicBinding
+import green.mobileapps.musiplayeroffline.databinding.FragmentQueueBinding
+import green.mobileapps.musiplayeroffline.databinding.ItemQueueMusicBinding
 
 class QueueBottomSheetFragment : BottomSheetDialogFragment() {
 

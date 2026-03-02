@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">@color/gmaGreen</color>
-    <color name="colorPrimaryDark">@color/gmaGreenDarkMono</color>
-    <color name="colorAccent">@color/gmaGreenDarkMono</color>
+    <color name="colorPrimary">@color/musixGreen</color>
+    <color name="colorPrimaryDark">@color/musixGreenDark</color>
+    <color name="colorAccent">@color/musixGreenDark</color>
 
+    <color name="musixGreen">#0f4f34</color>
+    <color name="musixGreenDark">#072418</color>
     <color name="gmaGreen">#1F6427</color>
     <color name="gmaGreenDarkMono">#0d2a10</color>
     <color name="gmaGreenWhite">#fafefb</color>

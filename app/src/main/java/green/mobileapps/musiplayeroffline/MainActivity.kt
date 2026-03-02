@@ -895,7 +895,19 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
         }
 
         viewModel.isLoading.observe(this) { isLoading ->
+            // 1. Update the refresh animation state
             binding.swipeRefreshLayout.isRefreshing = isLoading
+
+            // 2. When loading finishes (isLoading becomes false), scroll to the top
+            if (!isLoading) {
+                // We use .post {} to ensure the RecyclerView has finished
+                // processing the new data and layout before we try to scroll.
+                binding.recyclerViewMusic.post {
+                    if (musicAdapter.itemCount > 0) {
+                        binding.recyclerViewMusic.scrollToPosition(0)
+                    }
+                }
+            }
         }
 
         PlaylistRepository.queue.observe(this) { queue ->
@@ -985,6 +997,20 @@ class MainActivity : AppCompatActivity(), CoroutineScope, SearchView.OnQueryText
 
     private fun setupSearchView() {
         binding.searchViewMusic.setOnQueryTextListener(this)
+
+        // Find the internal close button of the SearchView
+        val closeButton = binding.searchViewMusic.findViewById<android.widget.ImageView>(androidx.appcompat.R.id.search_close_btn)
+
+        closeButton?.setOnClickListener {
+            // 1. Clear the text field visually (false means don't submit the query)
+            binding.searchViewMusic.setQuery("", false)
+
+            // 2. Remove focus to hide the soft keyboard
+            binding.searchViewMusic.clearFocus()
+
+            // 3. Explicitly tell the ViewModel to restore the full list
+            viewModel.filterList("")
+        }
     }
 
     private fun setupSwipeRefresh() {

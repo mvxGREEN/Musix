@@ -28,7 +28,7 @@ It provides a simple, focused audio playback experience for audio files on your 
 
 2. Open APK file to install.
 
-3. Done!  Open Musix app to start offline listening.
+3. Done!  Open **Musix** app to start offline listening.
 
 ## 💻 Build From Source Code:
 

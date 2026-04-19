@@ -1,6 +1,6 @@
-# MusixPlayer 🎵🎧
+# Musix 🎵🎧
 
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/mvxGREEN/Tagger/actions)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/mvxGREEN/Musix/actions)
 [![License: WTFPL](https://img.shields.io/badge/License-WTFPL-brightgreen.svg)](http://www.wtfpl.net/about/)
 [![Language: Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)](https://developer.android.com/)
@@ -36,12 +36,12 @@ To build and run this project locally, you will need [Android Studio](https://de
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/mvxGREEN/MusixPlayer.git
+   git clone https://github.com/mvxGREEN/Musix.git
    ```
 
 2. **Open the project:**
    * Launch Android Studio.
-   * Select **Open** and navigate to the cloned `MusixPlayer` directory.
+   * Select **Open** and navigate to the cloned directory.
 
 3. **Sync Gradle:**
    * Wait for Android Studio to download the necessary dependencies and sync the project.
@@ -52,7 +52,7 @@ To build and run this project locally, you will need [Android Studio](https://de
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/mvxGREEN/MusixPlayer/issues) if you want to contribute.
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/mvxGREEN/Musix/issues) if you want to contribute.
 
 ## 📄 License
 

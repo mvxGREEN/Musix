@@ -7,7 +7,7 @@
 
 **MusixPlayer** is a local, offline audio player app built natively for Android. 
 
-Musix provides a simple, focused audio playback experience for audio files on your Android device.
+It provides a simple, focused audio playback experience for audio files on your Android device.
 
 ## ✨ Features
 

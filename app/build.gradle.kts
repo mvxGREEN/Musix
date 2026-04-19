@@ -11,8 +11,8 @@ android {
         applicationId = "green.mobileapps.musiplayeroffline"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.3.8"
+        versionCode = 18
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

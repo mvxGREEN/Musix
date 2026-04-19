@@ -36,7 +36,7 @@ To build and run this project locally, you will need [Android Studio](https://de
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/mvxGREEN/MusixPlayer.git](https://github.com/mvxGREEN/MusixPlayer.git)
+   git clone https://github.com/mvxGREEN/MusixPlayer.git
    ```
 
 2. **Open the project:**

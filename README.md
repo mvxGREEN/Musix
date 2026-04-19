@@ -24,6 +24,12 @@ It provides a simple, focused audio playback experience for audio files on your 
 
 ## 🚀 Getting Started
 
+### Quick Start:
+
+Download and install latest APK from [Releases](https://github.com/mvxGREEN/Musix/releases) to an Android device.  Done!
+
+### Start From Source Code:
+
 To build and run this project locally, you will need [Android Studio](https://developer.android.com/studio) installed on your machine.
 
 ### Prerequisites

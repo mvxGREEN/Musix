@@ -24,11 +24,11 @@ It provides a simple, focused audio playback experience for audio files on your 
 
 ## ⚡️ Quick Start:
 
-Download latest APK from [Releases](https://github.com/mvxGREEN/Musix/releases) to an Android device.
+1. Download latest APK from [Releases](https://github.com/mvxGREEN/Musix/releases) to an Android device.
 
-Open APK file to install.
+2. Open APK file to install.
 
-Done!  Soundloader should be ready to run.
+3. Done!  Soundloader should be ready to run.
 
 ## 💻 Build From Source Code:
 

@@ -5,9 +5,9 @@
 [![Language: Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)](https://developer.android.com/)
 
-**MusixPlayer** is a local, offline audio player app built natively for Android. 
+**MusixPlayer** is an offline audio player app built natively for Android. 
 
-It provides a simple, focused audio playback experience for audio files on your Android device.
+It provides a simple, focused audio playback experience for audio files stored locally on your Android device.
 
 ## ✨ Features
 
@@ -22,15 +22,15 @@ It provides a simple, focused audio playback experience for audio files on your 
 * **Build System:** Gradle (Kotlin DSL `build.gradle.kts`)
 * **Platform:** Android
 
-## ⚡️ Quick Start:
+## ⚡️ Quick Start App
 
 1. Download latest APK from [Releases](https://github.com/mvxGREEN/Musix/releases) to an Android device.
 
 2. Open APK file to install.
 
-3. Done!  Open **Musix** app to start offline listening.
+3. Done!  Open **Musix** app to start listening offline.
 
-## 💻 Build From Source Code:
+## 💻 Build From Source Code
 
 To build and run this project locally, you will need [Android Studio](https://developer.android.com/studio) installed on your machine.
 

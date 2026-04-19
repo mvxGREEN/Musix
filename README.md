@@ -28,7 +28,7 @@ It provides a simple, focused audio playback experience for audio files on your 
 
 2. Open APK file to install.
 
-3. Done!  Soundloader should be ready to run.
+3. Done!  Open SoundLoader app to start downloading.
 
 ## 💻 Build From Source Code:
 

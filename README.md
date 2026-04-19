@@ -5,7 +5,7 @@
 [![Language: Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
 [![Platform: Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)](https://developer.android.com/)
 
-**MusixPlayer** (also known as 3Mp Music Player) is a lightweight, fully-featured offline music player application built specifically for Android. Written entirely in Kotlin, it provides a seamless local audio playback experience without the need for an internet connection.
+**MusixPlayer** is an offline music player application built natively for Android. It provides a seamless local audio playback experience without the need for an internet connection.
 
 ## ✨ Features
 
@@ -19,16 +19,6 @@
 * **Language:** Kotlin
 * **Build System:** Gradle (Kotlin DSL `build.gradle.kts`)
 * **Platform:** Android
-
-## 📸 Screenshots
-
-*(Replace these with actual screenshots of your app!)*
-
-<p align="center">
-  <img src="https://via.placeholder.com/250x500.png?text=Now+Playing" width="250"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="https://via.placeholder.com/250x500.png?text=Music+Library" width="250"/>
-</p>
 
 ## 🚀 Getting Started
 

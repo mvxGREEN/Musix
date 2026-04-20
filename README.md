@@ -13,6 +13,18 @@
 
 It provides a simple, focused audio playback experience for audio files stored locally on your Android device.
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/Screenshot 1.png" width="180"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 2.png" width="180"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 3.png" width="180"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 4.png" width="180"/>
+</p>
+
 ## ✨ Features
 
 * **Offline Playback:** Enjoy your entire local music library anywhere, anytime.
@@ -25,18 +37,6 @@ It provides a simple, focused audio playback experience for audio files stored l
 * **Language:** Kotlin
 * **Build System:** Gradle (Kotlin DSL `build.gradle.kts`)
 * **Platform:** Android
-
-## 📸 Screenshots
-
-<p align="center">
-  <img src="assets/Screenshot 1.png" width="180"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/Screenshot 2.png" width="180"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/Screenshot 3.png" width="180"/>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/Screenshot 4.png" width="180"/>
-</p>
 
 ## ⚡️ Quick Start App
 

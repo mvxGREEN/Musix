@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/launcher_musix_round.png" alt="Musix Round App Icon" width="200"/>
+</p>
+
 # Musix 🎵🎧
 
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/mvxGREEN/Musix/actions)
@@ -21,6 +25,18 @@ It provides a simple, focused audio playback experience for audio files stored l
 * **Language:** Kotlin
 * **Build System:** Gradle (Kotlin DSL `build.gradle.kts`)
 * **Platform:** Android
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/Screenshot 1.png" width="200"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 2.png" width="200"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 3.png" width="200"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/Screenshot 4.png" width="200"/>
+</p>
 
 ## ⚡️ Quick Start App
 
